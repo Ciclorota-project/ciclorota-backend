@@ -30,9 +30,9 @@ export interface UserDraftState {
 export interface CheckpointFormState {
   name: string;
   description: string;
-  qr_code: string;
   latitude: string;
   longitude: string;
   order: string;
   map: string;
+  info: string;
 }

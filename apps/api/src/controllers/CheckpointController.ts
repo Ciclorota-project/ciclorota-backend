@@ -34,11 +34,11 @@ export class CheckpointController {
       const checkpoint = await this.checkpointService.createCheckpoint({
         name: request.body?.name,
         description: request.body?.description,
-        qr_code: request.body?.qr_code,
         latitude: request.body?.latitude,
         longitude: request.body?.longitude,
         order: request.body?.order,
-        map: request.body?.map ?? null
+        map: request.body?.map ?? null,
+        info: request.body?.info ?? null
       });
 
       response.status(201).json(checkpoint);
@@ -59,11 +59,11 @@ export class CheckpointController {
       const checkpoint = await this.checkpointService.updateCheckpoint(checkpointId, {
         ...(request.body?.name !== undefined ? { name: request.body.name } : {}),
         ...(request.body?.description !== undefined ? { description: request.body.description } : {}),
-        ...(request.body?.qr_code !== undefined ? { qr_code: request.body.qr_code } : {}),
         ...(request.body?.latitude !== undefined ? { latitude: request.body.latitude } : {}),
         ...(request.body?.longitude !== undefined ? { longitude: request.body.longitude } : {}),
         ...(request.body?.order !== undefined ? { order: request.body.order } : {}),
-        ...(request.body?.map !== undefined ? { map: request.body.map } : {})
+        ...(request.body?.map !== undefined ? { map: request.body.map } : {}),
+        ...(request.body?.info !== undefined ? { info: request.body.info } : {})
       });
 
       response.json(checkpoint);

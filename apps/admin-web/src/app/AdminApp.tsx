@@ -166,6 +166,36 @@ function AdminApp() {
 
   useEffect(() => {
     if (!session?.user.is_admin || currentView !== 'users') {
+      return;
+    }
+
+    const handler = setTimeout(() => {
+      setUsersQuery((current) => {
+        const nextSearch = usersFilters.search.trim();
+        const nextRole = usersFilters.role !== 'all' ? usersFilters.role : undefined;
+
+        if (current.search === (nextSearch || undefined) && current.role === nextRole) {
+          return current;
+        }
+
+        const nextQuery: AdminUsersQuery = {
+          page: 1,
+          limit: current.limit ?? DEFAULT_PAGE_SIZE,
+          ...(nextSearch ? { search: nextSearch } : {}),
+          ...(nextRole ? { role: nextRole } : {})
+        };
+
+        return nextQuery;
+      });
+    }, 200);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [usersFilters.search, usersFilters.role, currentView, session?.user.is_admin]);
+
+  useEffect(() => {
+    if (!session?.user.is_admin || currentView !== 'users') {
       setSelectedUser(null);
       setUserDraft(createEmptyUserDraft());
       setLoadingSelectedUser(false);
@@ -652,7 +682,7 @@ function AdminApp() {
       {visibleError ? <div className="warning-box floating-warning">{visibleError}</div> : null}
       {feedback ? <div className="success-box floating-success">{feedback}</div> : null}
 
-      <main className="content-grid admin-grid">
+      <main className="content-grid">
         {currentView === 'overview' ? (
           <OverviewSection
             overview={overview}

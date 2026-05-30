@@ -19,6 +19,47 @@ export function CheckpointsSection(props: {
 }) {
   return (
     <div className="split-layout">
+      {/* Esquerda: Catalogo (checkpoints publicados na plataforma) */}
+      <section className="panel">
+        <div className="panel-heading inline">
+          <div>
+            <p className="eyebrow">Catalogo</p>
+            <h2>Checkpoints publicados na plataforma</h2>
+          </div>
+          <span className="muted-badge">
+            {props.loadingCheckpoints ? 'Carregando...' : `${props.checkpointsPagination.total_count} registros`}
+          </span>
+        </div>
+
+        <div className="data-table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Ordem</th>
+                <th>Checkpoint</th>
+              </tr>
+            </thead>
+            <tbody>
+              {props.checkpoints.map((checkpoint) => (
+                <tr
+                  key={checkpoint.id}
+                  className={props.currentCheckpoint?.id === checkpoint.id ? 'active-row' : ''}
+                  onClick={() => props.onStartEdit(checkpoint)}
+                >
+                  <td>{String(checkpoint.order).padStart(2, '0')}</td>
+                  <td>
+                    <strong>{checkpoint.name}</strong>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <PaginationControls pagination={props.checkpointsPagination} onChange={props.onChangePage} />
+      </section>
+
+      {/* Direita: Editor (Criar / Atualizar checkpoints existentes) */}
       <section className="panel">
         <div className="panel-heading inline">
           <div>
@@ -34,6 +75,7 @@ export function CheckpointsSection(props: {
           <label>
             Nome
             <input
+              type="text"
               value={props.checkpointForm.name}
               onChange={(event) => props.onFormChange('name', event.target.value)}
               placeholder="Ex.: Mirante Norte"
@@ -49,31 +91,22 @@ export function CheckpointsSection(props: {
             />
           </label>
 
-          <div className="form-grid">
-            <label>
-              QR code
-              <input
-                value={props.checkpointForm.qr_code}
-                onChange={(event) => props.onFormChange('qr_code', event.target.value)}
-                placeholder="qr-mirante-norte"
-              />
-            </label>
-
-            <label>
-              Ordem
-              <input
-                value={props.checkpointForm.order}
-                onChange={(event) => props.onFormChange('order', event.target.value)}
-                inputMode="numeric"
-                placeholder="1"
-              />
-            </label>
-          </div>
+          <label>
+            Ordem
+            <input
+              type="text"
+              value={props.checkpointForm.order}
+              onChange={(event) => props.onFormChange('order', event.target.value)}
+              inputMode="numeric"
+              placeholder="1"
+            />
+          </label>
 
           <div className="form-grid">
             <label>
               Latitude
               <input
+                type="text"
                 value={props.checkpointForm.latitude}
                 onChange={(event) => props.onFormChange('latitude', event.target.value)}
                 inputMode="decimal"
@@ -83,6 +116,7 @@ export function CheckpointsSection(props: {
             <label>
               Longitude
               <input
+                type="text"
                 value={props.checkpointForm.longitude}
                 onChange={(event) => props.onFormChange('longitude', event.target.value)}
                 inputMode="decimal"
@@ -94,9 +128,20 @@ export function CheckpointsSection(props: {
           <label>
             Link do mapa
             <input
+              type="text"
               value={props.checkpointForm.map}
               onChange={(event) => props.onFormChange('map', event.target.value)}
               placeholder="https://..."
+            />
+          </label>
+
+          <label style={{ marginTop: '16px' }}>
+            Link do Wikiloc
+            <input
+              type="text"
+              value={props.checkpointForm.info}
+              onChange={(event) => props.onFormChange('info', event.target.value)}
+              placeholder="https://wikiloc.com/..."
             />
           </label>
 
@@ -115,50 +160,6 @@ export function CheckpointsSection(props: {
             ) : null}
           </div>
         </form>
-      </section>
-
-      <section className="panel">
-        <div className="panel-heading inline">
-          <div>
-            <p className="eyebrow">Catalogo</p>
-            <h2>Checkpoints publicados na plataforma</h2>
-          </div>
-          <span className="muted-badge">
-            {props.loadingCheckpoints ? 'Carregando...' : `${props.checkpointsPagination.total_count} registros`}
-          </span>
-        </div>
-
-        <div className="data-table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Ordem</th>
-                <th>Checkpoint</th>
-                <th>QR</th>
-                <th>Mapa</th>
-              </tr>
-            </thead>
-            <tbody>
-              {props.checkpoints.map((checkpoint) => (
-                <tr
-                  key={checkpoint.id}
-                  className={props.currentCheckpoint?.id === checkpoint.id ? 'active-row' : ''}
-                  onClick={() => props.onStartEdit(checkpoint)}
-                >
-                  <td>{String(checkpoint.order).padStart(2, '0')}</td>
-                  <td>
-                    <strong>{checkpoint.name}</strong>
-                    <span>{checkpoint.description}</span>
-                  </td>
-                  <td>{checkpoint.qr_code}</td>
-                  <td>{checkpoint.map ? 'Disponivel' : 'Sem link'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <PaginationControls pagination={props.checkpointsPagination} onChange={props.onChangePage} />
       </section>
     </div>
   );

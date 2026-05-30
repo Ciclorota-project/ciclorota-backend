@@ -30,13 +30,14 @@ export interface Checkpoint {
   latitude: number;
   longitude: number;
   map: string | null;
+  info?: string | null;
 }
 
 export interface AdminCheckpoint extends Checkpoint {
   created_at: string;
-  qr_code: string;
   order: number;
   map: string | null;
+  info?: string | null;
 }
 
 export interface CheckinPayload {
@@ -48,7 +49,6 @@ export interface ProgressCheckpoint {
   id: string;
   name: string;
   description: string;
-  qr_code: string;
 }
 
 export interface ProgressEntry {
@@ -175,11 +175,11 @@ export interface AdminUserPatchInput {
 export interface AdminCheckpointInput {
   name: string;
   description: string;
-  qr_code: string;
   latitude: number;
   longitude: number;
   order: number;
   map?: string | null;
+  info?: string | null;
 }
 
 export type AdminCheckpointPatchInput = Partial<AdminCheckpointInput>;

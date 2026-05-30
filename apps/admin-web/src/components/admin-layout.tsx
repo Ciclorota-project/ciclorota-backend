@@ -25,10 +25,10 @@ export function AdminHeader(props: {
         <div className="hero-actions">
           <span className="status-chip">{identity}</span>
           <span className="status-chip subtle-chip">Role: {props.user.role}</span>
-          <button className="secondary-button" type="button" onClick={props.onRefreshOverview}>
+          <button className="secondary-button hero-btn-refresh" type="button" onClick={props.onRefreshOverview}>
             Atualizar overview
           </button>
-          <button className="secondary-button" type="button" onClick={props.onLogout}>
+          <button className="secondary-button hero-btn-logout" type="button" onClick={props.onLogout}>
             Sair
           </button>
         </div>

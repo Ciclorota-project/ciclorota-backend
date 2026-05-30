@@ -10,8 +10,7 @@ export class ProgressService {
         checkpoints (
           id,
           name,
-          description,
-          qr_code
+          description
         )
       `)
       .eq('user_id', userId)

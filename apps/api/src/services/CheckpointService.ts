@@ -4,11 +4,11 @@ import type { PaginatedResult, PaginationParams } from '../utils/pagination.js';
 interface CheckpointInput {
   name: string;
   description: string;
-  qr_code: string;
   latitude: number;
   longitude: number;
   order: number;
   map?: string | null;
+  info?: string | null;
 }
 
 type CheckpointUpdateInput = Partial<CheckpointInput>;
@@ -17,7 +17,7 @@ export class CheckpointService {
   async getAllCheckpoints() {
     const { data, error } = await supabaseAdmin
       .from('checkpoints')
-      .select('id, name, description, latitude, longitude, map')
+      .select('id, name, description, latitude, longitude, map, info')
       .order('order', { ascending: true });
 
     if (error) {
@@ -35,7 +35,7 @@ export class CheckpointService {
 
     const { data, error, count } = await supabaseAdmin
       .from('checkpoints')
-      .select('id, created_at, name, description, qr_code, latitude, longitude, order, map', {
+      .select('id, created_at, name, description, latitude, longitude, order, map, info', {
         count: 'exact'
       })
       .order('order', { ascending: true })
@@ -59,7 +59,7 @@ export class CheckpointService {
     const { data, error } = await supabaseAdmin
       .from('checkpoints')
       .insert([input])
-      .select('id, created_at, name, description, qr_code, latitude, longitude, order, map')
+      .select('id, created_at, name, description, latitude, longitude, order, map, info')
       .single();
 
     if (error) {
@@ -84,7 +84,7 @@ export class CheckpointService {
       .from('checkpoints')
       .update(payload)
       .eq('id', checkpointId)
-      .select('id, created_at, name, description, qr_code, latitude, longitude, order, map')
+      .select('id, created_at, name, description, latitude, longitude, order, map, info')
       .single();
 
     if (error) {
@@ -96,7 +96,7 @@ export class CheckpointService {
 }
 
 function validateCheckpointInput(input: CheckpointUpdateInput, partial = false) {
-  const requiredKeys: Array<keyof CheckpointInput> = ['name', 'description', 'qr_code', 'latitude', 'longitude', 'order'];
+  const requiredKeys: Array<keyof CheckpointInput> = ['name', 'description', 'latitude', 'longitude', 'order'];
 
   if (!partial) {
     for (const key of requiredKeys) {
@@ -114,12 +114,14 @@ function validateCheckpointInput(input: CheckpointUpdateInput, partial = false) 
     throw new Error('O campo description precisa ser texto.');
   }
 
-  if (input.qr_code !== undefined && typeof input.qr_code !== 'string') {
-    throw new Error('O campo qr_code precisa ser texto.');
-  }
+
 
   if (input.map !== undefined && input.map !== null && typeof input.map !== 'string') {
     throw new Error('O campo map precisa ser texto ou null.');
+  }
+
+  if (input.info !== undefined && input.info !== null && typeof input.info !== 'string') {
+    throw new Error('O campo info precisa ser texto ou null.');
   }
 
   if (input.latitude !== undefined && typeof input.latitude !== 'number') {

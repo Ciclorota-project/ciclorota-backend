@@ -5,11 +5,30 @@ interface CheckinInput {
   user_id: string;
   checkpoint_id: string;
   scanned_at: string;
+  latitude_scanned?: number | null | undefined;
+  longitude_scanned?: number | null | undefined;
 }
 
 interface UserCheckinInput {
   checkpoint_id: string;
   scanned_at: string;
+  latitude_scanned?: number | null | undefined;
+  longitude_scanned?: number | null | undefined;
+}
+
+function calculateDistanceInMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371e3; // Raio médio da Terra em metros
+  const phi1 = lat1 * Math.PI / 180;
+  const phi2 = lat2 * Math.PI / 180;
+  const deltaPhi = (lat2 - lat1) * Math.PI / 180;
+  const deltaLambda = (lon2 - lon1) * Math.PI / 180;
+
+  const a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+            Math.cos(phi1) * Math.cos(phi2) *
+            Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return R * c; // Distância em metros
 }
 
 export class CheckinService {
@@ -24,7 +43,7 @@ export class CheckinService {
 
     const { data: checkpointsData, error: fetchError } = await supabaseAdmin
       .from('checkpoints')
-      .select('id, qr_code')
+      .select('id, name, latitude, longitude')
       .or(buildCheckpointLookupFilter(checkpointReferences));
 
     if (fetchError) {
@@ -33,17 +52,44 @@ export class CheckinService {
 
     const checkinsToInsert = checkins.map((checkin) => {
       const checkpointFound = checkpointsData?.find(
-        (checkpoint) => checkpoint.id === checkin.checkpoint_id || checkpoint.qr_code === checkin.checkpoint_id
+        (checkpoint) => checkpoint.id === checkin.checkpoint_id
       );
 
       if (!checkpointFound) {
         throw new Error(`Checkpoint não reconhecido pelo sistema: ${checkin.checkpoint_id}`);
       }
 
+      // Validação de Geolocalização (Haversine) se as coordenadas do scan foram recebidas
+      let distanceMeters: number | null = null;
+      if (
+        checkin.latitude_scanned !== undefined && checkin.latitude_scanned !== null &&
+        checkin.longitude_scanned !== undefined && checkin.longitude_scanned !== null
+      ) {
+        if (checkpointFound.latitude !== null && checkpointFound.longitude !== null) {
+          distanceMeters = calculateDistanceInMeters(
+            checkpointFound.latitude,
+            checkpointFound.longitude,
+            checkin.latitude_scanned,
+            checkin.longitude_scanned
+          );
+
+          // Se a distância for maior que 100 metros, rejeita o check-in por fraude!
+          if (distanceMeters > 100.0) {
+            throw new HttpError(
+              400,
+              `Validação de localização falhou para o ponto "${checkpointFound.name}". Você está muito longe do local correto (distância calculada: ${Math.round(distanceMeters)}m, limite permitido: 100m).`
+            );
+          }
+        }
+      }
+
       return {
         user_id: checkin.user_id,
         checkpoint_id: checkpointFound.id,
-        scanned_at: checkin.scanned_at
+        scanned_at: checkin.scanned_at,
+        latitude_scanned: checkin.latitude_scanned ?? null,
+        longitude_scanned: checkin.longitude_scanned ?? null,
+        distance_meters: distanceMeters !== null ? Math.round(distanceMeters * 100) / 100 : null
       };
     });
 
@@ -70,7 +116,9 @@ export class CheckinService {
       checkins.map((checkin) => ({
         user_id: userId,
         checkpoint_id: checkin.checkpoint_id,
-        scanned_at: checkin.scanned_at
+        scanned_at: checkin.scanned_at,
+        latitude_scanned: checkin.latitude_scanned ?? null,
+        longitude_scanned: checkin.longitude_scanned ?? null
       }))
     );
   }
@@ -81,10 +129,7 @@ function buildCheckpointLookupFilter(references: string[]) {
     .filter((reference) => typeof reference === 'string' && reference.length > 0)
     .map((reference) => reference.replace(/,/g, '\\,'));
 
-  return [
-    `id.in.(${escapedReferences.join(',')})`,
-    `qr_code.in.(${escapedReferences.join(',')})`
-  ].join(',');
+  return `id.in.(${escapedReferences.join(',')})`;
 }
 
 function findRepeatedCheckpointIds(checkpointIds: string[]) {

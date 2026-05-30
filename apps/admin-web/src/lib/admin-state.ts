@@ -18,11 +18,11 @@ export function createEmptyCheckpointForm(): CheckpointFormState {
   return {
     name: '',
     description: '',
-    qr_code: '',
     latitude: '',
     longitude: '',
     order: '',
-    map: ''
+    map: '',
+    info: ''
   };
 }
 
@@ -30,25 +30,25 @@ export function toCheckpointForm(checkpoint: AdminCheckpoint): CheckpointFormSta
   return {
     name: checkpoint.name,
     description: checkpoint.description,
-    qr_code: checkpoint.qr_code,
     latitude: String(checkpoint.latitude),
     longitude: String(checkpoint.longitude),
     order: String(checkpoint.order),
-    map: checkpoint.map ?? ''
+    map: checkpoint.map ?? '',
+    info: checkpoint.info ?? ''
   };
 }
 
 export function toCheckpointPayload(form: CheckpointFormState): AdminCheckpointInput {
   const name = form.name.trim();
   const description = form.description.trim();
-  const qrCode = form.qr_code.trim();
   const map = form.map.trim();
+  const info = form.info.trim();
   const latitude = Number(form.latitude);
   const longitude = Number(form.longitude);
   const order = Number(form.order);
 
-  if (!name || !description || !qrCode) {
-    throw new Error('Nome, descricao e QR code sao obrigatorios.');
+  if (!name || !description) {
+    throw new Error('Nome e descricao sao obrigatorios.');
   }
 
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
@@ -62,10 +62,10 @@ export function toCheckpointPayload(form: CheckpointFormState): AdminCheckpointI
   return {
     name,
     description,
-    qr_code: qrCode,
     latitude,
     longitude,
     order,
-    map: map || null
+    map: map || null,
+    info: info || null
   };
 }

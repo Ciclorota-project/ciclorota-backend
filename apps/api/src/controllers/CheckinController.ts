@@ -55,6 +55,8 @@ function handleCheckinError(response: Response, error: any) {
 function normalizeCheckinPayload(checkin: any) {
   const checkpointId = normalizeOptionalTrimmedString(checkin?.checkpoint_id);
   const scannedAt = normalizeOptionalTrimmedString(checkin?.scanned_at);
+  const latitudeScanned = checkin?.latitude_scanned != null ? Number(checkin.latitude_scanned) : null;
+  const longitudeScanned = checkin?.longitude_scanned != null ? Number(checkin.longitude_scanned) : null;
 
   if (!checkpointId) {
     throw new HttpError(400, 'Cada check-in precisa informar checkpoint_id.');
@@ -64,8 +66,18 @@ function normalizeCheckinPayload(checkin: any) {
     throw new HttpError(400, 'Cada check-in precisa informar scanned_at em formato ISO-8601 válido.');
   }
 
+  if (latitudeScanned !== null && (isNaN(latitudeScanned) || latitudeScanned < -90 || latitudeScanned > 90)) {
+    throw new HttpError(400, 'A latitude do scan enviada é inválida.');
+  }
+
+  if (longitudeScanned !== null && (isNaN(longitudeScanned) || longitudeScanned < -180 || longitudeScanned > 180)) {
+    throw new HttpError(400, 'A longitude do scan enviada é inválida.');
+  }
+
   return {
     checkpoint_id: checkpointId,
-    scanned_at: scannedAt
+    scanned_at: scannedAt,
+    latitude_scanned: latitudeScanned,
+    longitude_scanned: longitudeScanned
   };
 }

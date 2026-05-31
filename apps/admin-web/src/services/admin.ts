@@ -5,6 +5,7 @@ import type {
   AdminCheckpoint,
   AdminCheckpointInput,
   AdminCheckpointPatchInput,
+  CheckpointImage,
   AdminCheckinsQuery,
   AdminOverviewResponse,
   AdminRecentCheckin,
@@ -78,6 +79,24 @@ export function updateAdminCheckpoint(accessToken: string, checkpointId: string,
     method: 'PATCH',
     accessToken,
     body: payload
+  });
+}
+
+export function uploadCheckpointImages(accessToken: string, checkpointId: string, files: File[]) {
+  const form = new FormData();
+  files.forEach((file) => form.append('files', file));
+
+  return requestJson<CheckpointImage[]>(`/admin/checkpoints/${checkpointId}/images`, {
+    method: 'POST',
+    accessToken,
+    body: form
+  });
+}
+
+export function deleteCheckpointImage(accessToken: string, checkpointId: string, imageId: string) {
+  return requestJson<void>(`/admin/checkpoints/${checkpointId}/images/${imageId}`, {
+    method: 'DELETE',
+    accessToken
   });
 }
 

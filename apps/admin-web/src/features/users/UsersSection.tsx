@@ -1,5 +1,5 @@
 import type { AppRole, AdminUserRecord, PaginationMeta } from '@ciclorota/shared';
-import { type FormEventHandler } from 'react';
+import { useMemo, useState, type FormEventHandler } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EmptyState, InfoPill, PaginationControls } from '../../components/admin-ui';
 import { formatDateTime } from '../../lib/format';
@@ -35,6 +35,101 @@ export function UsersSection(props: {
   const handleBackdropClick = () => {
     handleCloseModal();
   };
+
+  type SortKey = 'name' | 'email' | 'role' | 'checkins' | 'certificate';
+  type SortDirection = 'asc' | 'desc';
+
+  // Direção inicial ao clicar pela primeira vez em cada coluna.
+  const DEFAULT_DIRECTION: Record<SortKey, SortDirection> = {
+    name: 'asc',         // A -> Z
+    email: 'asc',        // A -> Z
+    role: 'desc',        // superadmin -> admin -> user
+    checkins: 'desc',    // maior -> menor
+    certificate: 'desc'  // Sim -> Não
+  };
+
+  const ROLE_RANK: Record<AppRole, number> = {
+    superadmin: 2,
+    admin: 1,
+    user: 0
+  };
+
+  const [sort, setSort] = useState<{ key: SortKey; direction: SortDirection }>({
+    key: 'name',
+    direction: DEFAULT_DIRECTION.name
+  });
+
+  const handleSort = (key: SortKey) => {
+    setSort((current) =>
+      current.key === key
+        ? { key, direction: current.direction === 'asc' ? 'desc' : 'asc' }
+        : { key, direction: DEFAULT_DIRECTION[key] }
+    );
+  };
+
+  const sortedUsers = useMemo(() => {
+    const collator = new Intl.Collator('pt-BR', { sensitivity: 'base' });
+    const list = [...props.users];
+
+    const compare = (a: AdminUserRecord, b: AdminUserRecord) => {
+      switch (sort.key) {
+        case 'name':
+          return collator.compare(a.full_name ?? '', b.full_name ?? '');
+        case 'email':
+          return collator.compare(a.email ?? a.id, b.email ?? b.id);
+        case 'role':
+          return ROLE_RANK[a.role] - ROLE_RANK[b.role];
+        case 'checkins':
+          return a.total_checkins - b.total_checkins;
+        case 'certificate':
+          return Number(a.has_certificate) - Number(b.has_certificate);
+        default:
+          return 0;
+      }
+    };
+
+    list.sort((a, b) => {
+      const result = compare(a, b);
+      return sort.direction === 'asc' ? result : -result;
+    });
+
+    return list;
+  }, [props.users, sort]);
+
+  const sortIndicator = (key: SortKey) => {
+    if (sort.key !== key) {
+      return <span className="sort-indicator sort-indicator-idle">⇅</span>;
+    }
+    return (
+      <span className="sort-indicator sort-indicator-active">
+        {sort.direction === 'asc' ? '▲' : '▼'}
+      </span>
+    );
+  };
+
+  const sortableHeaderProps = (key: SortKey, label: string) => ({
+    className: `sortable-header${sort.key === key ? ' sortable-header-active' : ''}`,
+    onClick: () => handleSort(key),
+    role: 'button' as const,
+    tabIndex: 0,
+    'aria-sort': (sort.key === key
+      ? sort.direction === 'asc'
+        ? 'ascending'
+        : 'descending'
+      : 'none') as 'ascending' | 'descending' | 'none',
+    onKeyDown: (event: React.KeyboardEvent<HTMLTableCellElement>) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        handleSort(key);
+      }
+    },
+    children: (
+      <span className="sortable-header-content">
+        {label}
+        {sortIndicator(key)}
+      </span>
+    )
+  });
 
   return (
     <div className="users-section-wrap">
@@ -93,15 +188,15 @@ export function UsersSection(props: {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Usuario</th>
-                <th>E-mail</th>
-                <th>Role</th>
-                <th>Check-ins</th>
-                <th>Certificado</th>
+                <th {...sortableHeaderProps('name', 'Usuario')} />
+                <th {...sortableHeaderProps('email', 'E-mail')} />
+                <th {...sortableHeaderProps('role', 'Role')} />
+                <th {...sortableHeaderProps('checkins', 'Check-ins')} />
+                <th {...sortableHeaderProps('certificate', 'Certificado')} />
               </tr>
             </thead>
             <tbody>
-              {props.users.map((user) => (
+              {sortedUsers.map((user) => (
                 <tr
                   key={user.id}
                   className={props.selectedUserId === user.id ? 'active-row' : ''}

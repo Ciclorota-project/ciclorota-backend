@@ -17,19 +17,23 @@ export async function requestJson<T>(
   }
 ): Promise<ApiResponse<T>> {
   const headers: Record<string, string> = {};
+  const isFormData = typeof FormData !== 'undefined' && options?.body instanceof FormData;
 
   if (options?.accessToken) {
     headers.Authorization = `Bearer ${options.accessToken}`;
   }
 
-  if (options?.body !== undefined) {
+  // Para FormData o browser define o Content-Type (com boundary) automaticamente.
+  if (options?.body !== undefined && !isFormData) {
     headers['Content-Type'] = 'application/json';
   }
 
   const response = await fetch(`${API_URL}${path}`, {
     method: options?.method ?? 'GET',
     headers,
-    ...(options?.body !== undefined ? { body: JSON.stringify(options.body) } : {})
+    ...(options?.body !== undefined
+      ? { body: isFormData ? (options.body as FormData) : JSON.stringify(options.body) }
+      : {})
   });
 
   const text = await response.text();

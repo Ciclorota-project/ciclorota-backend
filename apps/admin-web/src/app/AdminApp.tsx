@@ -44,6 +44,7 @@ import {
 import { useAdminSession } from '../hooks/useAdminSession';
 import {
   createAdminCheckpoint,
+  deleteCheckpointImage,
   fetchAdminCertificates,
   fetchAdminCheckins,
   fetchAdminCheckpoints,
@@ -53,7 +54,8 @@ import {
   fetchAdminUsers,
   issueAdminCertificate,
   updateAdminCheckpoint,
-  updateAdminUser
+  updateAdminUser,
+  uploadCheckpointImages
 } from '../services/admin';
 import type {
   CertificatesFilterState,
@@ -102,6 +104,7 @@ function AdminApp() {
   const [loadingDirectories, setLoadingDirectories] = useState(false);
   const [savingUser, setSavingUser] = useState(false);
   const [savingCheckpoint, setSavingCheckpoint] = useState(false);
+  const [uploadingImages, setUploadingImages] = useState(false);
   const [issuingCertificate, setIssuingCertificate] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -518,6 +521,48 @@ function AdminApp() {
     setCheckpointForm(createEmptyCheckpointForm());
   }
 
+  async function handleUploadCheckpointImages(files: File[]) {
+    if (!session?.accessToken || !editingCheckpointId || files.length === 0) {
+      return;
+    }
+
+    try {
+      setUploadingImages(true);
+      resetMessages();
+      await uploadCheckpointImages(session.accessToken, editingCheckpointId, files);
+      setFeedback(files.length > 1 ? 'Imagens enviadas com sucesso.' : 'Imagem enviada com sucesso.');
+      await Promise.all([
+        loadCheckpoints(session.accessToken, checkpointsPage),
+        loadDirectories(session.accessToken)
+      ]);
+    } catch (caughtError) {
+      await handleAppError(caughtError);
+    } finally {
+      setUploadingImages(false);
+    }
+  }
+
+  async function handleDeleteCheckpointImage(imageId: string) {
+    if (!session?.accessToken || !editingCheckpointId) {
+      return;
+    }
+
+    try {
+      setUploadingImages(true);
+      resetMessages();
+      await deleteCheckpointImage(session.accessToken, editingCheckpointId, imageId);
+      setFeedback('Imagem removida com sucesso.');
+      await Promise.all([
+        loadCheckpoints(session.accessToken, checkpointsPage),
+        loadDirectories(session.accessToken)
+      ]);
+    } catch (caughtError) {
+      await handleAppError(caughtError);
+    } finally {
+      setUploadingImages(false);
+    }
+  }
+
   function handleUsersFilterSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setUsersQuery({
@@ -728,18 +773,19 @@ function AdminApp() {
 
         {currentView === 'checkpoints' ? (
           <CheckpointsSection
-            checkpoints={checkpoints}
+            checkpointDirectory={checkpointDirectory}
             currentCheckpoint={currentCheckpoint}
-            checkpointsPagination={checkpointsPagination}
             checkpointForm={checkpointForm}
             editingCheckpointId={editingCheckpointId}
-            loadingCheckpoints={loadingCheckpoints}
+            loadingDirectory={loadingDirectories}
             savingCheckpoint={savingCheckpoint}
+            uploadingImages={uploadingImages}
             onSubmit={handleSubmitCheckpoint}
             onFormChange={handleCheckpointFormChange}
             onStartEdit={handleStartCheckpointEdit}
             onNewCheckpoint={handleNewCheckpoint}
-            onChangePage={setCheckpointsPage}
+            onUploadImages={(files) => void handleUploadCheckpointImages(files)}
+            onDeleteImage={(imageId) => void handleDeleteCheckpointImage(imageId)}
           />
         ) : null}
 

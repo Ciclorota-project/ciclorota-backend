@@ -17,8 +17,11 @@ export class CheckpointService {
   async getAllCheckpoints() {
     const { data, error } = await supabaseAdmin
       .from('checkpoints')
-      .select('id, name, description, latitude, longitude, map, info')
-      .order('order', { ascending: true });
+      .select(
+        'id, name, description, latitude, longitude, map, info, images:checkpoint_images(id, url, position, width, height)'
+      )
+      .order('order', { ascending: true })
+      .order('position', { referencedTable: 'checkpoint_images', ascending: true });
 
     if (error) {
       throw new Error('Erro ao buscar checkpoints.');
@@ -35,10 +38,14 @@ export class CheckpointService {
 
     const { data, error, count } = await supabaseAdmin
       .from('checkpoints')
-      .select('id, created_at, name, description, latitude, longitude, order, map, info', {
-        count: 'exact'
-      })
+      .select(
+        'id, created_at, name, description, latitude, longitude, order, map, info, images:checkpoint_images(id, url, position, width, height)',
+        {
+          count: 'exact'
+        }
+      )
       .order('order', { ascending: true })
+      .order('position', { referencedTable: 'checkpoint_images', ascending: true })
       .range(from, to);
 
     if (error) {

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { uploadCheckpointImages } from '../config/upload.js';
 import { requireAdmin, requireAuth } from '../middleware/auth.js';
 import { AdminController } from '../controllers/AdminController.js';
 import { AuthController } from '../controllers/AuthController.js';
@@ -41,6 +42,9 @@ routes.get('/admin/checkins', requireAdmin, adminController.checkins.bind(adminC
 routes.get('/admin/checkpoints', requireAdmin, checkpointController.adminIndex.bind(checkpointController));
 routes.post('/admin/checkpoints', requireAdmin, checkpointController.store.bind(checkpointController));
 routes.patch('/admin/checkpoints/:checkpointId', requireAdmin, checkpointController.update.bind(checkpointController));
+routes.get('/admin/checkpoints/:checkpointId/images', requireAdmin, checkpointController.listImages.bind(checkpointController));
+routes.post('/admin/checkpoints/:checkpointId/images', requireAdmin, uploadCheckpointImages, checkpointController.addImages.bind(checkpointController));
+routes.delete('/admin/checkpoints/:checkpointId/images/:imageId', requireAdmin, checkpointController.deleteImage.bind(checkpointController));
 routes.get('/admin/certificates', requireAdmin, certificateController.adminIndex.bind(certificateController));
 routes.post('/admin/certificates/:userId/issue', requireAdmin, certificateController.adminIssue.bind(certificateController));
 

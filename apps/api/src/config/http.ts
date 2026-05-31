@@ -6,7 +6,7 @@ loadEnvironment();
 
 const EXPOSED_HEADERS = ['X-Page', 'X-Per-Page', 'X-Total-Count', 'X-Total-Pages'];
 const ALLOWED_HEADERS = ['Authorization', 'Content-Type'];
-const ALLOWED_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'OPTIONS'];
+const ALLOWED_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'];
 
 export function createCorsOptions(): CorsOptions {
   const allowedOrigins = getAllowedOrigins();

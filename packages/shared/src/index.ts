@@ -23,6 +23,14 @@ export interface AuthSession {
   token_type: string;
 }
 
+export interface CheckpointImage {
+  id: string;
+  url: string;
+  position: number;
+  width: number | null;
+  height: number | null;
+}
+
 export interface Checkpoint {
   id: string;
   name: string;
@@ -31,6 +39,7 @@ export interface Checkpoint {
   longitude: number;
   map: string | null;
   info?: string | null;
+  images?: CheckpointImage[];
 }
 
 export interface AdminCheckpoint extends Checkpoint {

@@ -1,10 +1,12 @@
 import { type Request, type Response } from 'express';
 import { CheckpointService } from '../services/CheckpointService.js';
+import { CheckpointImageService } from '../services/CheckpointImageService.js';
 import { applyPaginationHeaders, parsePaginationQuery } from '../utils/pagination.js';
 import { isUuid } from '../utils/validation.js';
 
 export class CheckpointController {
   private readonly checkpointService = new CheckpointService();
+  private readonly checkpointImageService = new CheckpointImageService();
 
   async index(request: Request, response: Response): Promise<void> {
     try {
@@ -69,6 +71,62 @@ export class CheckpointController {
       response.json(checkpoint);
     } catch (error: any) {
       response.status(400).json({ error: error.message || 'Erro ao atualizar checkpoint.' });
+    }
+  }
+
+  async listImages(request: Request, response: Response): Promise<void> {
+    try {
+      const checkpointId = normalizeRouteParam(request.params.checkpointId);
+
+      if (!checkpointId || !isUuid(checkpointId)) {
+        response.status(400).json({ error: 'O checkpointId precisa ser um UUID válido.' });
+        return;
+      }
+
+      const images = await this.checkpointImageService.listByCheckpoint(checkpointId);
+      response.json(images);
+    } catch (error: any) {
+      response.status(500).json({ error: error.message || 'Erro ao listar imagens do checkpoint.' });
+    }
+  }
+
+  async addImages(request: Request, response: Response): Promise<void> {
+    try {
+      const checkpointId = normalizeRouteParam(request.params.checkpointId);
+
+      if (!checkpointId || !isUuid(checkpointId)) {
+        response.status(400).json({ error: 'O checkpointId precisa ser um UUID válido.' });
+        return;
+      }
+
+      const files = Array.isArray(request.files) ? request.files : [];
+
+      const images = await this.checkpointImageService.addImages(checkpointId, files);
+      response.status(201).json(images);
+    } catch (error: any) {
+      response.status(400).json({ error: error.message || 'Erro ao enviar imagens do checkpoint.' });
+    }
+  }
+
+  async deleteImage(request: Request, response: Response): Promise<void> {
+    try {
+      const checkpointId = normalizeRouteParam(request.params.checkpointId);
+      const imageId = normalizeRouteParam(request.params.imageId);
+
+      if (!checkpointId || !isUuid(checkpointId)) {
+        response.status(400).json({ error: 'O checkpointId precisa ser um UUID válido.' });
+        return;
+      }
+
+      if (!imageId || !isUuid(imageId)) {
+        response.status(400).json({ error: 'O imageId precisa ser um UUID válido.' });
+        return;
+      }
+
+      await this.checkpointImageService.deleteImage(checkpointId, imageId);
+      response.status(204).send();
+    } catch (error: any) {
+      response.status(400).json({ error: error.message || 'Erro ao remover imagem do checkpoint.' });
     }
   }
 }

@@ -1,3 +1,4 @@
+import type { Request } from 'express';
 import type { CorsOptions } from 'cors';
 import { HttpError } from '../utils/httpError.js';
 import { loadEnvironment } from './loadEnv.js';
@@ -54,6 +55,21 @@ export function getCorsConfigSnapshot() {
     allowed_origins: allowedOrigins,
     exposed_headers: EXPOSED_HEADERS
   };
+}
+
+// URL pública base, usada para construir links de verificação que serão
+// embutidos em QR codes e impressos em PDFs. Prefere a env var quando
+// presente (ex.: produção atrás de reverse proxy) e cai de volta para
+// o host da requisição em desenvolvimento.
+export function getPublicBaseUrl(request: Request) {
+  const envValue = process.env.PUBLIC_API_BASE_URL?.trim();
+  if (envValue) {
+    return envValue.replace(/\/+$/, '');
+  }
+
+  const protocol = (request.headers['x-forwarded-proto'] as string | undefined) ?? request.protocol;
+  const host = (request.headers['x-forwarded-host'] as string | undefined) ?? request.get('host');
+  return `${protocol}://${host}`;
 }
 
 export function getHealthPayload() {

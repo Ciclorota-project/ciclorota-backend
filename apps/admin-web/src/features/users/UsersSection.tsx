@@ -71,12 +71,30 @@ export function UsersSection(props: {
     const collator = new Intl.Collator('pt-BR', { sensitivity: 'base' });
     const list = [...props.users];
 
+    // Para colunas textuais, normalizamos cedo e tratamos vazios à parte:
+    // independente da direção (A->Z ou Z->A), "Sem nome" / e-mail ausente
+    // deve cair sempre no FIM da lista. Senão, no A->Z os nulos apareciam
+    // no topo (string vazia colaciona antes de qualquer letra) e o usuário
+    // tinha a impressão de que a ordem alfabética estava quebrada.
+    const getTextValue = (user: AdminUserRecord, key: 'name' | 'email') => {
+      const raw = key === 'name' ? user.full_name : user.email;
+      return typeof raw === 'string' ? raw.trim() : '';
+    };
+
+    const nullableBias = (a: AdminUserRecord, b: AdminUserRecord, key: 'name' | 'email') => {
+      const va = getTextValue(a, key);
+      const vb = getTextValue(b, key);
+      if (va && vb) return null;
+      if (!va && !vb) return 0;
+      return va ? -1 : 1; // o vazio sempre vai pro fim.
+    };
+
     const compare = (a: AdminUserRecord, b: AdminUserRecord) => {
       switch (sort.key) {
         case 'name':
-          return collator.compare(a.full_name ?? '', b.full_name ?? '');
+          return collator.compare(getTextValue(a, 'name'), getTextValue(b, 'name'));
         case 'email':
-          return collator.compare(a.email ?? a.id, b.email ?? b.id);
+          return collator.compare(getTextValue(a, 'email'), getTextValue(b, 'email'));
         case 'role':
           return ROLE_RANK[a.role] - ROLE_RANK[b.role];
         case 'checkins':
@@ -89,6 +107,13 @@ export function UsersSection(props: {
     };
 
     list.sort((a, b) => {
+      // Pass 1: vazios sempre no fim, sem inverter pela direção.
+      if (sort.key === 'name' || sort.key === 'email') {
+        const bias = nullableBias(a, b, sort.key);
+        if (bias !== null) return bias;
+      }
+
+      // Pass 2: ordenação normal, respeitando a direção.
       const result = compare(a, b);
       return sort.direction === 'asc' ? result : -result;
     });

@@ -68,7 +68,9 @@ export class ProfileController {
         return;
       }
 
-      const updatedProfile = await this.profileService.updateProfile(userId, normalizedProfile);
+      // upsert para que contas recém-criadas (sem linha em `profiles`) consigam
+      // gravar nome/avatar logo no primeiro acesso (fluxo de complete profile).
+      const updatedProfile = await this.profileService.upsertProfile(userId, normalizedProfile);
 
       response.json(updatedProfile);
     } catch (error: any) {

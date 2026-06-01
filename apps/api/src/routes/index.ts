@@ -28,11 +28,16 @@ routes.get('/auth/me', requireAuth, authController.me.bind(authController));
 
 routes.get('/checkpoints', checkpointController.index.bind(checkpointController));
 
+// Rota pública de verificação: qualquer pessoa (sem login) pode confirmar
+// a autenticidade de um certificado escaneando o QR ou digitando o código.
+routes.get('/certificates/verify/:code', certificateController.verify.bind(certificateController));
+
 routes.get('/me/profile', requireAuth, profileController.showMe.bind(profileController));
 routes.put('/me/profile', requireAuth, profileController.updateMe.bind(profileController));
 routes.get('/me/progress', requireAuth, progressController.showMe.bind(progressController));
 routes.post('/me/checkins', requireAuth, checkinController.storeMe.bind(checkinController));
 routes.post('/me/certificates', requireAuth, certificateController.storeMe.bind(certificateController));
+routes.get('/me/certificates/pdf', requireAuth, certificateController.downloadMe.bind(certificateController));
 
 routes.get('/admin/overview', requireAdmin, adminController.overview.bind(adminController));
 routes.get('/admin/users', requireAdmin, adminController.users.bind(adminController));
@@ -47,6 +52,7 @@ routes.post('/admin/checkpoints/:checkpointId/images', requireAdmin, uploadCheck
 routes.delete('/admin/checkpoints/:checkpointId/images/:imageId', requireAdmin, checkpointController.deleteImage.bind(checkpointController));
 routes.get('/admin/certificates', requireAdmin, certificateController.adminIndex.bind(certificateController));
 routes.post('/admin/certificates/:userId/issue', requireAdmin, certificateController.adminIssue.bind(certificateController));
+routes.get('/admin/certificates/:userId/pdf', requireAdmin, certificateController.downloadByUser.bind(certificateController));
 
 routes.post('/checkins', requireAuth, checkinController.store.bind(checkinController));
 routes.get('/progress/:userId', requireAuth, progressController.show.bind(progressController));

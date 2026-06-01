@@ -6,6 +6,7 @@ Este diretório guarda o contrato esperado do banco para a API da Ciclorota.
 
 - `migrations/20260408_000001_core_schema.sql`: baseline do schema principal usado pelo backend
 - `migrations/20260531_000002_checkpoint_images.sql`: tabela `checkpoint_images` + bucket público `checkpoint-images` (carrossel de fotos do checkpoint)
+- `migrations/20260601_000003_certificate_verification.sql`: coluna `verification_code` em `certificates` (PDF + QR de validação)
 
 ## Observação
 

@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '../config/supabase.js';
+import { CHECKPOINT_IMAGES_BUCKET } from '../config/upload.js';
 import type { PaginatedResult, PaginationParams } from '../utils/pagination.js';
 
 interface CheckpointInput {
@@ -60,6 +61,20 @@ export class CheckpointService {
     };
   }
 
+  async getCheckpointById(checkpointId: string) {
+    const { data, error } = await supabaseAdmin
+      .from('checkpoints')
+      .select('id, name')
+      .eq('id', checkpointId)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error('Erro ao buscar checkpoint.');
+    }
+
+    return data;
+  }
+
   async createCheckpoint(input: CheckpointInput) {
     validateCheckpointInput(input);
 
@@ -74,6 +89,66 @@ export class CheckpointService {
     }
 
     return data;
+  }
+
+  async deleteCheckpoint(checkpointId: string) {
+    // Limpeza explícita das dependências. Funciona mesmo em bancos cuja
+    // FK não esteja configurada com `ON DELETE CASCADE` (a baseline
+    // declara, mas alguns ambientes divergiram). A migração 20260601_5
+    // recria as FKs com cascade — esta limpeza dá margem extra de segurança
+    // e cobre os arquivos de Storage que o cascade não toca.
+
+    // 1) Arquivos das imagens no Storage (FK do DB não consegue tocar).
+    const { data: images, error: imagesError } = await supabaseAdmin
+      .from('checkpoint_images')
+      .select('storage_path')
+      .eq('checkpoint_id', checkpointId);
+
+    if (imagesError) {
+      throw new Error('Erro ao listar imagens do checkpoint para exclusão.');
+    }
+
+    if (images && images.length > 0) {
+      const paths = images.map((image) => image.storage_path).filter(Boolean);
+      if (paths.length > 0) {
+        const { error: storageError } = await supabaseAdmin.storage
+          .from(CHECKPOINT_IMAGES_BUCKET)
+          .remove(paths);
+        if (storageError) {
+          throw new Error(`Erro ao limpar imagens do checkpoint: ${storageError.message}`);
+        }
+      }
+    }
+
+    // 2) Rows da tabela `checkpoint_images`.
+    const { error: deleteImagesError } = await supabaseAdmin
+      .from('checkpoint_images')
+      .delete()
+      .eq('checkpoint_id', checkpointId);
+
+    if (deleteImagesError) {
+      throw new Error(`Erro ao remover imagens vinculadas: ${deleteImagesError.message}`);
+    }
+
+    // 3) Check-ins dos usuários vinculados (causa do FK violation).
+    const { error: deleteCheckinsError } = await supabaseAdmin
+      .from('checkins')
+      .delete()
+      .eq('checkpoint_id', checkpointId);
+
+    if (deleteCheckinsError) {
+      throw new Error(`Erro ao remover check-ins vinculados: ${deleteCheckinsError.message}`);
+    }
+
+    // 4) O checkpoint em si.
+    const { error } = await supabaseAdmin
+      .from('checkpoints')
+      .delete()
+      .eq('id', checkpointId);
+
+    if (error) {
+      throw new Error(`Erro ao excluir checkpoint: ${error.message}`);
+    }
   }
 
   async updateCheckpoint(checkpointId: string, input: CheckpointUpdateInput) {

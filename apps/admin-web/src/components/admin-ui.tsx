@@ -155,3 +155,92 @@ export function EmptyState(props: { title: string; message: string }) {
     </div>
   );
 }
+
+export function ConfirmDialog(props: {
+  open: boolean;
+  title: string;
+  message: string;
+  /** Mostrado em destaque acima da mensagem — ex.: nome do recurso afetado. */
+  highlight?: string;
+  /** Itens listados como consequências da ação. */
+  bullets?: string[];
+  confirmLabel?: string;
+  cancelLabel?: string;
+  variant?: 'danger' | 'default';
+  busy?: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  if (!props.open) return null;
+
+  const variant = props.variant ?? 'default';
+  const confirmLabel = props.confirmLabel ?? 'Confirmar';
+  const cancelLabel = props.cancelLabel ?? 'Cancelar';
+
+  return (
+    <div
+      className="modal-backdrop"
+      onClick={() => {
+        if (!props.busy) props.onCancel();
+      }}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className={`confirm-dialog confirm-dialog-${variant}`}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className={`confirm-icon confirm-icon-${variant}`} aria-hidden>
+          {variant === 'danger' ? (
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+          ) : (
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+          )}
+        </div>
+
+        <h2 className="confirm-title">{props.title}</h2>
+
+        {props.highlight ? (
+          <p className="confirm-highlight">{props.highlight}</p>
+        ) : null}
+
+        <p className="confirm-message">{props.message}</p>
+
+        {props.bullets && props.bullets.length > 0 ? (
+          <ul className="confirm-bullets">
+            {props.bullets.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        ) : null}
+
+        <div className="confirm-actions">
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={props.onCancel}
+            disabled={props.busy}
+          >
+            {cancelLabel}
+          </button>
+          <button
+            type="button"
+            className={variant === 'danger' ? 'danger-button' : ''}
+            onClick={props.onConfirm}
+            disabled={props.busy}
+          >
+            {props.busy ? 'Processando...' : confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -13,6 +13,7 @@ import type {
   AdminUserRecord,
   AdminUsersQuery
 } from '@ciclorota/shared';
+import { API_URL } from '../lib/env';
 import { requestJson } from '../lib/api';
 import { buildCertificatesQueryString, buildCheckinsQueryString, buildUsersQueryString } from '../lib/query';
 
@@ -82,6 +83,13 @@ export function updateAdminCheckpoint(accessToken: string, checkpointId: string,
   });
 }
 
+export function deleteAdminCheckpoint(accessToken: string, checkpointId: string) {
+  return requestJson<void>(`/admin/checkpoints/${checkpointId}`, {
+    method: 'DELETE',
+    accessToken
+  });
+}
+
 export function uploadCheckpointImages(accessToken: string, checkpointId: string, files: File[]) {
   const form = new FormData();
   files.forEach((file) => form.append('files', file));
@@ -91,6 +99,23 @@ export function uploadCheckpointImages(accessToken: string, checkpointId: string
     accessToken,
     body: form
   });
+}
+
+/**
+ * Baixa o PNG do QR Code do checkpoint via Bearer e devolve uma object URL
+ * (use URL.revokeObjectURL no cleanup para liberar memória).
+ */
+export async function loadCheckpointQrImage(accessToken: string, checkpointId: string): Promise<string> {
+  const response = await fetch(`${API_URL}/admin/checkpoints/${checkpointId}/qr.png`, {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Não foi possível carregar o QR Code (HTTP ${response.status}).`);
+  }
+
+  const blob = await response.blob();
+  return URL.createObjectURL(blob);
 }
 
 export function deleteCheckpointImage(accessToken: string, checkpointId: string, imageId: string) {

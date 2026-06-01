@@ -1,4 +1,5 @@
 import { type Request, type Response } from 'express';
+import QRCode from 'qrcode';
 import { CheckpointService } from '../services/CheckpointService.js';
 import { CheckpointImageService } from '../services/CheckpointImageService.js';
 import { applyPaginationHeaders, parsePaginationQuery } from '../utils/pagination.js';
@@ -105,6 +106,54 @@ export class CheckpointController {
       response.status(201).json(images);
     } catch (error: any) {
       response.status(400).json({ error: error.message || 'Erro ao enviar imagens do checkpoint.' });
+    }
+  }
+
+  async destroy(request: Request, response: Response): Promise<void> {
+    try {
+      const checkpointId = normalizeRouteParam(request.params.checkpointId);
+
+      if (!checkpointId || !isUuid(checkpointId)) {
+        response.status(400).json({ error: 'O checkpointId precisa ser um UUID válido.' });
+        return;
+      }
+
+      await this.checkpointService.deleteCheckpoint(checkpointId);
+      response.status(204).send();
+    } catch (error: any) {
+      response.status(400).json({ error: error.message || 'Erro ao excluir checkpoint.' });
+    }
+  }
+
+  async getQrImage(request: Request, response: Response): Promise<void> {
+    try {
+      const checkpointId = normalizeRouteParam(request.params.checkpointId);
+
+      if (!checkpointId || !isUuid(checkpointId)) {
+        response.status(400).json({ error: 'O checkpointId precisa ser um UUID válido.' });
+        return;
+      }
+
+      const checkpoint = await this.checkpointService.getCheckpointById(checkpointId);
+
+      if (!checkpoint) {
+        response.status(404).json({ error: 'Checkpoint não encontrado.' });
+        return;
+      }
+
+      // O conteúdo do QR é o próprio UUID do checkpoint — o mesmo valor
+      // que o app mobile envia em /me/checkins como `checkpoint_id`.
+      const pngBuffer = await QRCode.toBuffer(checkpoint.id, {
+        width: 600,
+        margin: 1,
+        errorCorrectionLevel: 'M'
+      });
+
+      response.setHeader('Content-Type', 'image/png');
+      response.setHeader('Cache-Control', 'private, max-age=3600');
+      response.send(pngBuffer);
+    } catch (error: any) {
+      response.status(500).json({ error: error.message || 'Erro ao gerar QR do checkpoint.' });
     }
   }
 

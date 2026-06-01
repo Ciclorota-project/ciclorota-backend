@@ -25,6 +25,37 @@ export class ProfileController {
     await this.updateProfile(request, response, request.auth?.userId);
   }
 
+  async uploadMyAvatar(request: Request, response: Response): Promise<void> {
+    try {
+      const userId = request.auth?.userId;
+      if (!userId) {
+        response.status(401).json({ error: 'Sessão inválida.' });
+        return;
+      }
+      if (!isUuid(userId)) {
+        response.status(400).json({ error: 'O ID do usuário precisa ser um UUID válido.' });
+        return;
+      }
+
+      const file = request.file;
+      if (!file) {
+        response.status(400).json({ error: 'Nenhuma imagem foi enviada.' });
+        return;
+      }
+
+      const updated = await this.profileService.replaceAvatar(userId, {
+        buffer: file.buffer,
+        mimetype: file.mimetype
+      });
+
+      response.json(updated);
+    } catch (error: any) {
+      response
+        .status(getErrorStatus(error, 500))
+        .json({ error: getErrorMessage(error, 'Erro ao atualizar a foto de perfil.') });
+    }
+  }
+
   private async respondWithProfile(request: Request, response: Response, userId?: string): Promise<void> {
     try {
       if (!userId) {

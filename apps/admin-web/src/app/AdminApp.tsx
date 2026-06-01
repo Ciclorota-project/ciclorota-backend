@@ -13,6 +13,7 @@ import type {
   AdminUsersQuery
 } from '@ciclorota/shared';
 import { AdminHeader, AdminNavigation } from '../components/admin-layout';
+import { ConfirmDialog } from '../components/admin-ui';
 import { AccessDeniedView, LoginView, MissingSupabaseConfigView, RestoringSessionView } from '../components/auth-views';
 import { CertificatesSection } from '../features/certificates/CertificatesSection';
 import { CheckinsSection } from '../features/checkins/CheckinsSection';
@@ -44,6 +45,7 @@ import {
 import { useAdminSession } from '../hooks/useAdminSession';
 import {
   createAdminCheckpoint,
+  deleteAdminCheckpoint,
   deleteCheckpointImage,
   fetchAdminCertificates,
   fetchAdminCheckins,
@@ -105,6 +107,8 @@ function AdminApp() {
   const [savingUser, setSavingUser] = useState(false);
   const [savingCheckpoint, setSavingCheckpoint] = useState(false);
   const [uploadingImages, setUploadingImages] = useState(false);
+  const [deletingCheckpoint, setDeletingCheckpoint] = useState(false);
+  const [deleteCheckpointModalOpen, setDeleteCheckpointModalOpen] = useState(false);
   const [issuingCertificate, setIssuingCertificate] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -230,14 +234,6 @@ function AdminApp() {
 
     void loadCheckins(session.accessToken, checkinsQuery);
   }, [currentView, checkinsQuery, session?.accessToken, session?.user.is_admin]);
-
-  useEffect(() => {
-    if (!session?.user.is_admin || currentView !== 'certificates') {
-      return;
-    }
-
-    void loadCertificates(session.accessToken, certificatesQuery);
-  }, [currentView, certificatesQuery, session?.accessToken, session?.user.is_admin]);
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -461,7 +457,7 @@ function AdminApp() {
       await Promise.all([
         loadOverview(session.accessToken),
         loadUsers(session.accessToken, usersQuery),
-        loadCertificates(session.accessToken, certificatesQuery),
+        // recentCertificates ainda alimenta o painel de Overview.
         loadRecentCertificates(session.accessToken),
         loadDirectories(session.accessToken),
         ...(selectedUserId === targetUserId ? [loadSelectedUser(session.accessToken, targetUserId)] : [])
@@ -519,6 +515,38 @@ function AdminApp() {
   function handleNewCheckpoint() {
     setEditingCheckpointId(null);
     setCheckpointForm(createEmptyCheckpointForm());
+  }
+
+  function requestDeleteCheckpoint() {
+    if (!editingCheckpointId) {
+      return;
+    }
+    setDeleteCheckpointModalOpen(true);
+  }
+
+  async function confirmDeleteCheckpoint() {
+    if (!session?.accessToken || !editingCheckpointId) {
+      return;
+    }
+
+    try {
+      setDeletingCheckpoint(true);
+      resetMessages();
+      await deleteAdminCheckpoint(session.accessToken, editingCheckpointId);
+      setFeedback('Checkpoint excluído com sucesso.');
+      setEditingCheckpointId(null);
+      setCheckpointForm(createEmptyCheckpointForm());
+      setDeleteCheckpointModalOpen(false);
+      await Promise.all([
+        loadOverview(session.accessToken),
+        loadCheckpoints(session.accessToken, checkpointsPage),
+        loadDirectories(session.accessToken)
+      ]);
+    } catch (caughtError) {
+      await handleAppError(caughtError);
+    } finally {
+      setDeletingCheckpoint(false);
+    }
   }
 
   async function handleUploadCheckpointImages(files: File[]) {
@@ -780,12 +808,15 @@ function AdminApp() {
             loadingDirectory={loadingDirectories}
             savingCheckpoint={savingCheckpoint}
             uploadingImages={uploadingImages}
+            deletingCheckpoint={deletingCheckpoint}
+            accessToken={session?.accessToken ?? ''}
             onSubmit={handleSubmitCheckpoint}
             onFormChange={handleCheckpointFormChange}
             onStartEdit={handleStartCheckpointEdit}
             onNewCheckpoint={handleNewCheckpoint}
             onUploadImages={(files) => void handleUploadCheckpointImages(files)}
             onDeleteImage={(imageId) => void handleDeleteCheckpointImage(imageId)}
+            onDeleteCheckpoint={requestDeleteCheckpoint}
           />
         ) : null}
 
@@ -810,24 +841,34 @@ function AdminApp() {
         {currentView === 'certificates' ? (
           <CertificatesSection
             certificateIssueUserId={certificateIssueUserId}
-            certificates={certificates}
-            certificatesPagination={certificatesPagination}
-            certificatesFilters={certificatesFilters}
             userDirectory={userDirectory}
             issuingCertificate={issuingCertificate}
-            loadingCertificates={loadingCertificates}
             onIssueTargetChange={setCertificateIssueUserId}
             onIssueCertificate={(userId) => void handleIssueCertificate(userId)}
-            onFiltersChange={setCertificatesFilters}
-            onSubmitFilters={handleCertificatesFilterSubmit}
-            onResetFilters={() => {
-              setCertificatesFilters({ userId: '' });
-              setCertificatesQuery({ page: 1, limit: certificatesQuery.limit ?? DEFAULT_PAGE_SIZE });
-            }}
-            onChangePage={(page) => setCertificatesQuery((currentValue) => ({ ...currentValue, page }))}
           />
         ) : null}
       </main>
+
+      <ConfirmDialog
+        open={deleteCheckpointModalOpen}
+        variant="danger"
+        title="Excluir este checkpoint?"
+        highlight={
+          checkpointDirectory.find((item) => item.id === editingCheckpointId)?.name ??
+          'Checkpoint selecionado'
+        }
+        message="Esta ação é permanente. Ao confirmar, os seguintes dados serão removidos:"
+        bullets={[
+          'O ponto da rota e seu QR Code',
+          'Todas as fotos do carrossel deste checkpoint',
+          'Todos os check-ins de usuários neste ponto (afeta o progresso deles)'
+        ]}
+        confirmLabel="Sim, excluir"
+        cancelLabel="Manter checkpoint"
+        busy={deletingCheckpoint}
+        onConfirm={() => void confirmDeleteCheckpoint()}
+        onCancel={() => setDeleteCheckpointModalOpen(false)}
+      />
     </div>
   );
 }

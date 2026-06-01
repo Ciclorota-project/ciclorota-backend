@@ -1,9 +1,17 @@
+import { randomUUID } from 'node:crypto';
 import { supabaseAdmin } from '../config/supabase.js';
+import { PROFILE_AVATARS_BUCKET } from '../config/upload.js';
 
 interface ProfileUpdateData {
   full_name?: string | null;
   avatar_url?: string | null;
 }
+
+const MIME_EXTENSIONS: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp'
+};
 
 export class ProfileService {
   async getUserProfile(userId: string) {
@@ -89,6 +97,59 @@ export class ProfileService {
     }
 
     return updatedData;
+  }
+
+  async replaceAvatar(userId: string, file: { buffer: Buffer; mimetype: string }) {
+    // Limpa avatares antigos do usuário (qualquer extensão), depois faz upload
+    // novo com um nome único para evitar cache stale do CDN.
+    const { data: existing, error: listError } = await supabaseAdmin.storage
+      .from(PROFILE_AVATARS_BUCKET)
+      .list(userId, { limit: 100 });
+
+    if (listError) {
+      throw new Error(`Erro ao listar avatares anteriores: ${listError.message}`);
+    }
+
+    if (existing && existing.length > 0) {
+      const oldPaths = existing.map((file) => `${userId}/${file.name}`);
+      const { error: removeError } = await supabaseAdmin.storage
+        .from(PROFILE_AVATARS_BUCKET)
+        .remove(oldPaths);
+      if (removeError) {
+        throw new Error(`Erro ao remover avatares antigos: ${removeError.message}`);
+      }
+    }
+
+    const extension = MIME_EXTENSIONS[file.mimetype] ?? 'jpg';
+    const storagePath = `${userId}/${randomUUID()}.${extension}`;
+
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from(PROFILE_AVATARS_BUCKET)
+      .upload(storagePath, file.buffer, {
+        contentType: file.mimetype,
+        upsert: false
+      });
+
+    if (uploadError) {
+      throw new Error(`Erro ao enviar a foto de perfil: ${uploadError.message}`);
+    }
+
+    const {
+      data: { publicUrl }
+    } = supabaseAdmin.storage.from(PROFILE_AVATARS_BUCKET).getPublicUrl(storagePath);
+
+    // Upsert para suportar o caso de conta nova sem linha em profiles ainda.
+    const { data, error } = await supabaseAdmin
+      .from('profiles')
+      .upsert({ id: userId, avatar_url: publicUrl }, { onConflict: 'id' })
+      .select('id, full_name, avatar_url')
+      .single();
+
+    if (error) {
+      throw new Error(`Erro ao atualizar perfil com novo avatar: ${error.message}`);
+    }
+
+    return data;
   }
 
   async getProfilesByIds(userIds: string[]) {

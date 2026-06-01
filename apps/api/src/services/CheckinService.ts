@@ -1,6 +1,11 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { HttpError } from '../utils/httpError.js';
 
+// Flag para desligar a validação Haversine em ambiente de teste/dev.
+// Defina CHECKIN_DISABLE_GEOFENCE=true no .env do backend para permitir
+// check-ins fora do raio de 100m do checkpoint (ex.: testar QR de casa).
+const GEOFENCE_DISABLED = (process.env.CHECKIN_DISABLE_GEOFENCE ?? '').toLowerCase() === 'true';
+
 interface CheckinInput {
   user_id: string;
   checkpoint_id: string;
@@ -39,6 +44,8 @@ export class CheckinService {
       }
     }
 
+    // O `checkpoint_id` que chega aqui é o UUID do checkpoint, lido
+    // diretamente do conteúdo do QR Code escaneado pelo app.
     const checkpointReferences = checkins.map((checkin) => checkin.checkpoint_id);
 
     const { data: checkpointsData, error: fetchError } = await supabaseAdmin
@@ -74,7 +81,9 @@ export class CheckinService {
           );
 
           // Se a distância for maior que 100 metros, rejeita o check-in por fraude!
-          if (distanceMeters > 100.0) {
+          // O bypass via CHECKIN_DISABLE_GEOFENCE=true só serve para testes;
+          // mantém o cálculo da distância (para registrar/auditar), mas não bloqueia.
+          if (distanceMeters > 100.0 && !GEOFENCE_DISABLED) {
             throw new HttpError(
               400,
               `Validação de localização falhou para o ponto "${checkpointFound.name}". Você está muito longe do local correto (distância calculada: ${Math.round(distanceMeters)}m, limite permitido: 100m).`

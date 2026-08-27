@@ -14,15 +14,16 @@ export function createApp() {
   app.use(cors(createCorsOptions()));
   app.use(express.json({ limit: '1mb' }));
 
-  app.get('/health', (_request, response) => {
+  app.get(['/health', '/api/health'], (_request, response) => {
     response.json(getHealthPayload());
   });
 
-  app.get('/ready', (_request, response) => {
+  app.get(['/ready', '/api/ready'], (_request, response) => {
     const payload = getReadinessPayload();
     response.status(payload.status === 'ready' ? 200 : 503).json(payload);
   });
 
+  app.use('/api', routes);
   app.use(routes);
   app.use(notFoundHandler);
   app.use(errorHandler);

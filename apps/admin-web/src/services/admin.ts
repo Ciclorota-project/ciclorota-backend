@@ -47,18 +47,6 @@ export function fetchAdminCertificates(accessToken: string, query: AdminCertific
   });
 }
 
-export async function fetchAdminDirectories(accessToken: string, options: { usersLimit: number; checkpointsLimit: number }) {
-  const [usersPayload, checkpointsPayload] = await Promise.all([
-    fetchAdminUsers(accessToken, { page: 1, limit: options.usersLimit }),
-    fetchAdminCheckpoints(accessToken, { page: 1, limit: options.checkpointsLimit })
-  ]);
-
-  return {
-    users: usersPayload.data,
-    checkpoints: checkpointsPayload.data
-  };
-}
-
 export function updateAdminUser(accessToken: string, userId: string, payload: AdminUserPatchInput) {
   return requestJson<AdminUserRecord>(`/admin/users/${userId}`, {
     method: 'PATCH',

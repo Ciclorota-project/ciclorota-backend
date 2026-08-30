@@ -12,7 +12,7 @@ import type {
   AdminUserRecord,
   AdminUsersQuery
 } from '@ciclorota/shared';
-import { AdminHeader, AdminNavigation } from '../components/admin-layout';
+import { AdminNavbar } from '../components/admin-layout';
 import { ConfirmDialog } from '../components/admin-ui';
 import { AccessDeniedView, LoginView, MissingSupabaseConfigView, RestoringSessionView } from '../components/auth-views';
 import { CertificatesSection } from '../features/certificates/CertificatesSection';
@@ -25,7 +25,6 @@ import {
   createEmptyUserDraft,
   DEFAULT_PAGE_SIZE,
   DIRECTORY_CHECKPOINTS_LIMIT,
-  DIRECTORY_USERS_LIMIT,
   OVERVIEW_CERTIFICATES_LIMIT,
   toCheckpointForm,
   toCheckpointPayload
@@ -50,7 +49,6 @@ import {
   fetchAdminCertificates,
   fetchAdminCheckins,
   fetchAdminCheckpoints,
-  fetchAdminDirectories,
   fetchAdminOverview,
   fetchAdminUser,
   fetchAdminUsers,
@@ -76,7 +74,6 @@ function AdminApp() {
   const [overview, setOverview] = useState<AdminOverviewResponse | null>(null);
   const [users, setUsers] = useState<AdminUserRecord[]>([]);
   const [usersPagination, setUsersPagination] = useState(createEmptyPagination());
-  const [userDirectory, setUserDirectory] = useState<AdminUserRecord[]>([]);
   const [selectedUser, setSelectedUser] = useState<AdminUserRecord | null>(null);
   const [loadingSelectedUser, setLoadingSelectedUser] = useState(false);
   const [userDraft, setUserDraft] = useState<UserDraftState>(createEmptyUserDraft());
@@ -152,7 +149,6 @@ function AdminApp() {
     if (!session?.user.is_admin) {
       setOverview(null);
       setRecentCertificates([]);
-      setUserDirectory([]);
       setCheckpointDirectory([]);
       setSelectedUser(null);
       return;
@@ -160,7 +156,7 @@ function AdminApp() {
 
     void loadOverview(session.accessToken);
     void loadRecentCertificates(session.accessToken);
-    void loadDirectories(session.accessToken);
+    void loadCheckpointDirectory(session.accessToken);
   }, [session?.accessToken, session?.user.is_admin]);
 
   useEffect(() => {
@@ -235,6 +231,14 @@ function AdminApp() {
     void loadCheckins(session.accessToken, checkinsQuery);
   }, [currentView, checkinsQuery, session?.accessToken, session?.user.is_admin]);
 
+  useEffect(() => {
+    if (!session?.user.is_admin || currentView !== 'certificates') {
+      return;
+    }
+
+    void loadCertificates(session.accessToken, certificatesQuery);
+  }, [currentView, certificatesQuery, session?.accessToken, session?.user.is_admin]);
+
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -284,25 +288,17 @@ function AdminApp() {
     }
   }
 
-  async function loadDirectories(accessToken: string) {
+  async function loadCheckpointDirectory(accessToken: string) {
     try {
       setLoadingDirectories(true);
 
-      const payload = await fetchAdminDirectories(accessToken, {
-        usersLimit: DIRECTORY_USERS_LIMIT,
-        checkpointsLimit: DIRECTORY_CHECKPOINTS_LIMIT
-      });
+      const payload = await fetchAdminCheckpoints(accessToken, { page: 1, limit: DIRECTORY_CHECKPOINTS_LIMIT });
 
-      setUserDirectory(payload.users);
-      setCheckpointDirectory(payload.checkpoints);
+      setCheckpointDirectory(payload.data);
 
-      if (!editingCheckpointId && payload.checkpoints[0]) {
-        setCheckpointForm(toCheckpointForm(payload.checkpoints[0]));
-        setEditingCheckpointId(payload.checkpoints[0].id);
-      }
-
-      if (!certificateIssueUserId && payload.users[0]) {
-        setCertificateIssueUserId(payload.users[0].id);
+      if (!editingCheckpointId && payload.data[0]) {
+        setCheckpointForm(toCheckpointForm(payload.data[0]));
+        setEditingCheckpointId(payload.data[0].id);
       }
     } catch (caughtError) {
       await handleAppError(caughtError);
@@ -433,7 +429,7 @@ function AdminApp() {
       await Promise.all([
         loadOverview(session.accessToken),
         loadUsers(session.accessToken, usersQuery),
-        loadDirectories(session.accessToken)
+        loadCheckpointDirectory(session.accessToken)
       ]);
     } catch (caughtError) {
       await handleAppError(caughtError);
@@ -459,7 +455,7 @@ function AdminApp() {
         loadUsers(session.accessToken, usersQuery),
         // recentCertificates ainda alimenta o painel de Overview.
         loadRecentCertificates(session.accessToken),
-        loadDirectories(session.accessToken),
+        loadCheckpointDirectory(session.accessToken),
         ...(selectedUserId === targetUserId ? [loadSelectedUser(session.accessToken, targetUserId)] : [])
       ]);
     } catch (caughtError) {
@@ -491,7 +487,7 @@ function AdminApp() {
       await Promise.all([
         loadOverview(session.accessToken),
         loadCheckpoints(session.accessToken, checkpointsPage),
-        loadDirectories(session.accessToken)
+        loadCheckpointDirectory(session.accessToken)
       ]);
     } catch (caughtError) {
       await handleAppError(caughtError);
@@ -540,7 +536,7 @@ function AdminApp() {
       await Promise.all([
         loadOverview(session.accessToken),
         loadCheckpoints(session.accessToken, checkpointsPage),
-        loadDirectories(session.accessToken)
+        loadCheckpointDirectory(session.accessToken)
       ]);
     } catch (caughtError) {
       await handleAppError(caughtError);
@@ -561,7 +557,7 @@ function AdminApp() {
       setFeedback(files.length > 1 ? 'Imagens enviadas com sucesso.' : 'Imagem enviada com sucesso.');
       await Promise.all([
         loadCheckpoints(session.accessToken, checkpointsPage),
-        loadDirectories(session.accessToken)
+        loadCheckpointDirectory(session.accessToken)
       ]);
     } catch (caughtError) {
       await handleAppError(caughtError);
@@ -582,7 +578,7 @@ function AdminApp() {
       setFeedback('Imagem removida com sucesso.');
       await Promise.all([
         loadCheckpoints(session.accessToken, checkpointsPage),
-        loadDirectories(session.accessToken)
+        loadCheckpointDirectory(session.accessToken)
       ]);
     } catch (caughtError) {
       await handleAppError(caughtError);
@@ -635,7 +631,7 @@ function AdminApp() {
 
     void loadOverview(session.accessToken);
     void loadRecentCertificates(session.accessToken);
-    void loadDirectories(session.accessToken);
+    void loadCheckpointDirectory(session.accessToken);
   }
 
   function resetMessages() {
@@ -648,7 +644,6 @@ function AdminApp() {
     setOverview(null);
     setUsers([]);
     setUsersPagination(createEmptyPagination());
-    setUserDirectory([]);
     setSelectedUser(null);
     setUserDraft(createEmptyUserDraft());
     setCheckpoints([]);
@@ -734,28 +729,24 @@ function AdminApp() {
     return <Navigate to={DEFAULT_ADMIN_ROUTE} replace />;
   }
 
+  const totalCheckpoints = overview?.summary.checkpoints ?? checkpointDirectory.length;
+
   return (
-    <div className="admin-shell">
-      <div className="admin-noise" />
+    <div className="min-h-screen bg-zinc-950">
+      <AdminNavbar user={session.user} profile={profile} onLogout={() => void handleLogout()} />
 
-      <AdminHeader
-        user={session.user}
-        profile={profile}
-        overview={overview}
-        onRefreshOverview={handleRefreshOverview}
-        onLogout={() => void handleLogout()}
-      />
+      <main className="mx-auto max-w-7xl px-4 pb-8 pt-28 sm:px-6 md:pt-24 lg:px-8">
+        {visibleError ? (
+          <div className="mb-6 rounded-lg border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">
+            {visibleError}
+          </div>
+        ) : null}
+        {feedback ? (
+          <div className="mb-6 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+            {feedback}
+          </div>
+        ) : null}
 
-      <AdminNavigation
-        loadingDirectories={loadingDirectories}
-        userCount={userDirectory.length}
-        checkpointCount={checkpointDirectory.length}
-      />
-
-      {visibleError ? <div className="warning-box floating-warning">{visibleError}</div> : null}
-      {feedback ? <div className="success-box floating-success">{feedback}</div> : null}
-
-      <main className="content-grid">
         {currentView === 'overview' ? (
           <OverviewSection
             overview={overview}
@@ -763,6 +754,7 @@ function AdminApp() {
             topUsers={topUsers}
             recentCertificates={recentCertificates}
             onSelectUser={selectUser}
+            onRefreshOverview={handleRefreshOverview}
           />
         ) : null}
 
@@ -779,6 +771,7 @@ function AdminApp() {
             canChangeRoles={Boolean(canChangeRoles)}
             savingUser={savingUser}
             issuingCertificate={issuingCertificate}
+            totalCheckpoints={totalCheckpoints}
             onSelectUser={selectUser}
             onFiltersChange={setUsersFilters}
             onSubmitFilters={handleUsersFilterSubmit}
@@ -825,9 +818,9 @@ function AdminApp() {
             checkins={checkins}
             checkinsPagination={checkinsPagination}
             checkinsFilters={checkinsFilters}
-            userDirectory={userDirectory}
             checkpointDirectory={checkpointDirectory}
             loadingCheckins={loadingCheckins}
+            accessToken={session?.accessToken ?? ''}
             onFiltersChange={setCheckinsFilters}
             onSubmitFilters={handleCheckinsFilterSubmit}
             onResetFilters={() => {
@@ -841,10 +834,25 @@ function AdminApp() {
         {currentView === 'certificates' ? (
           <CertificatesSection
             certificateIssueUserId={certificateIssueUserId}
-            userDirectory={userDirectory}
             issuingCertificate={issuingCertificate}
+            certificates={certificates}
+            certificatesPagination={certificatesPagination}
+            loadingCertificates={loadingCertificates}
+            totalIssued={overview?.summary.certificates ?? 0}
+            pendingCount={(overview?.users ?? []).filter(
+              (user) => user.total_checkins >= totalCheckpoints && totalCheckpoints > 0 && !user.has_certificate
+            ).length}
+            certificatesFilters={certificatesFilters}
+            accessToken={session?.accessToken ?? ''}
             onIssueTargetChange={setCertificateIssueUserId}
             onIssueCertificate={(userId) => void handleIssueCertificate(userId)}
+            onFiltersChange={setCertificatesFilters}
+            onSubmitFilters={handleCertificatesFilterSubmit}
+            onResetFilters={() => {
+              setCertificatesFilters({ userId: '' });
+              setCertificatesQuery({ page: 1, limit: certificatesQuery.limit ?? DEFAULT_PAGE_SIZE });
+            }}
+            onChangePage={(page) => setCertificatesQuery((currentValue) => ({ ...currentValue, page }))}
           />
         ) : null}
       </main>

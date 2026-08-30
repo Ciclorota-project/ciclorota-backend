@@ -1,5 +1,7 @@
 import type { AdminCertificateRecord, AdminOverviewResponse, AdminUserRecord } from '@ciclorota/shared';
-import { EmptyState } from '../../components/admin-ui';
+import { Award, CheckCircle2, MapPin, RefreshCw, Users } from 'lucide-react';
+import { EmptyState, MetricCard, ScrollableList } from '../../components/admin-ui';
+import { Button, Card, CardHeader } from '../../components/ui';
 import { formatDateTime } from '../../lib/format';
 
 export function OverviewSection(props: {
@@ -8,182 +10,168 @@ export function OverviewSection(props: {
   topUsers: AdminUserRecord[];
   recentCertificates: AdminCertificateRecord[];
   onSelectUser: (user: AdminUserRecord) => void;
+  onRefreshOverview: () => void;
 }) {
   const totalCheckpoints = props.overview?.summary.checkpoints || 0;
 
-  // 1. Filtrar e ordenar ciclistas para mostrar apenas role === 'user' ordenado por check-ins
   const sortedRiders = (props.overview?.users ?? [])
     .filter((user) => user.role === 'user')
     .sort((a, b) => b.total_checkins - a.total_checkins)
-    .slice(0, 5); // Limitar aos top 5 ciclistas
+    .slice(0, 5);
 
-  // 2. Limitar check-ins aos últimos 5
   const latestCheckins = (props.overview?.recent_checkins ?? []).slice(0, 5);
-
-  // 3. Limitar certificados aos últimos 5
   const latestCertificates = props.recentCertificates.slice(0, 5);
 
   return (
-    <div className="overview-grid">
-      {/* Coluna 1: Classificação de Ciclistas */}
-      <section className="panel">
-        <div className="panel-heading inline">
-          <div>
-            <p className="eyebrow">Classificação</p>
-            <h2>Líderes da Rota</h2>
-          </div>
-          <span className="muted-badge">
-            {props.loadingOverview ? 'Sincronizando...' : `${sortedRiders.length} ativos`}
-          </span>
-        </div>
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold text-zinc-100">Overview</h1>
+        <Button variant="secondary" type="button" onClick={props.onRefreshOverview} disabled={props.loadingOverview}>
+          <RefreshCw size={16} className={props.loadingOverview ? 'animate-spin' : ''} />
+          Atualizar
+        </Button>
+      </div>
 
-        <div className="scrollable-panel-list">
-          {sortedRiders.map((user, index) => {
-            const rank = index + 1;
-            const progressPercent = totalCheckpoints > 0
-              ? Math.min(100, Math.round((user.total_checkins / totalCheckpoints) * 100))
-              : 0;
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <MetricCard label="Total de Usuários" value={props.overview?.summary.users ?? 0} icon={Users} accent />
+        <MetricCard
+          label="Checkpoints Ativos"
+          value={props.overview?.summary.checkpoints ?? 0}
+          icon={MapPin}
+          description="Rotas catalogadas"
+        />
+        <MetricCard label="Check-ins Totais" value={props.overview?.summary.checkins ?? 0} icon={CheckCircle2} />
+        <MetricCard label="Certificados Emitidos" value={props.overview?.summary.certificates ?? 0} icon={Award} />
+      </div>
 
-            return (
-              <article
-                key={user.id}
-                className="leaderboard-item"
-                onClick={() => props.onSelectUser(user)}
-              >
-                <div className={`rank-badge rank-${rank <= 3 ? rank : 'default'}`}>
-                  {rank}
-                </div>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <Card>
+          <CardHeader
+            eyebrow="Classificação"
+            title="Líderes da Rota"
+            meta={props.loadingOverview ? 'Sincronizando...' : `${sortedRiders.length} ativos`}
+          />
+          <div className="p-4">
+            <ScrollableList>
+              {sortedRiders.map((user, index) => {
+                const rank = index + 1;
+                const progressPercent =
+                  totalCheckpoints > 0 ? Math.min(100, Math.round((user.total_checkins / totalCheckpoints) * 100)) : 0;
 
-                <div className="avatar-badge" style={{ width: '40px', height: '40px', fontSize: '0.9rem', flexShrink: 0 }}>
-                  {(user.full_name ?? user.email ?? 'CR').slice(0, 2).toUpperCase()}
-                </div>
-
-                <div className="leaderboard-info">
-                  <h3>{user.full_name || 'Sem nome cadastrado'}</h3>
-                  <p>{user.email ?? user.id}</p>
-
-                  <div className="rider-progress">
-                    <div className="progress-track">
-                      <div className="progress-fill" style={{ width: `${progressPercent}%` }} />
-                    </div>
-                    <span className="progress-label">
-                      {user.total_checkins}/{totalCheckpoints} checkpoints ({progressPercent}%)
+                return (
+                  <button
+                    key={user.id}
+                    type="button"
+                    onClick={() => props.onSelectUser(user)}
+                    className="flex cursor-pointer items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-left transition-colors hover:border-emerald-500/40"
+                  >
+                    <span
+                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
+                        rank === 1
+                          ? 'bg-amber-500/15 text-amber-400'
+                          : rank <= 3
+                            ? 'bg-zinc-800 text-zinc-200'
+                            : 'bg-zinc-800/60 text-zinc-500'
+                      }`}
+                    >
+                      {rank}
                     </span>
-                  </div>
-                </div>
 
-                <div className="leaderboard-meta" style={{ flexShrink: 0 }}>
-                  {user.has_certificate ? (
-                    <span className="crown-badge">Elite</span>
-                  ) : null}
-                </div>
-              </article>
-            );
-          })}
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-xs font-semibold text-emerald-400">
+                      {(user.full_name ?? user.email ?? 'CR').slice(0, 2).toUpperCase()}
+                    </span>
 
-          {sortedRiders.length === 0 ? (
-            <EmptyState
-              title="Nenhum ciclista ativo"
-              message="Aguardando registros de check-ins no aplicativo."
-            />
-          ) : null}
-        </div>
-      </section>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-zinc-100">
+                        {user.full_name || 'Sem nome cadastrado'}
+                      </span>
+                      <span className="mt-1 block h-1.5 w-full overflow-hidden rounded-full bg-zinc-800">
+                        <span className="block h-full rounded-full bg-emerald-500" style={{ width: `${progressPercent}%` }} />
+                      </span>
+                      <span className="mt-1 block text-xs text-zinc-500">
+                        {user.total_checkins}/{totalCheckpoints} checkpoints ({progressPercent}%)
+                      </span>
+                    </span>
 
-      {/* Coluna 2: Check-ins Recentes (Sem linha do tempo, scroll a 3 de 5) */}
-      <section className="panel">
-        <div className="panel-heading inline">
-          <div>
-            <p className="eyebrow">Atividade</p>
-            <h2>Check-ins Recentes</h2>
+                    {user.has_certificate ? (
+                      <span className="shrink-0 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-400">
+                        Elite
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
+
+              {sortedRiders.length === 0 ? (
+                <EmptyState title="Nenhum ciclista ativo" message="Aguardando registros de check-ins no aplicativo." />
+              ) : null}
+            </ScrollableList>
           </div>
-          <span className="muted-badge">{props.overview?.recent_checkins.length ?? 0} total</span>
-        </div>
+        </Card>
 
-        <div className="scrollable-panel-list">
-          {latestCheckins.map((checkin) => (
-            <article
-              className="timeline-card-premium"
-              key={checkin.id}
-              style={{ display: 'flex', alignItems: 'center', gap: '14px', border: '1px solid rgba(23, 53, 44, 0.08)' }}
-            >
-              <div
-                className="certificate-icon-glow"
-                style={{
-                  background: 'rgba(23, 53, 44, 0.06)',
-                  color: 'var(--bg-strong)',
-                  boxShadow: 'none',
-                  width: '40px',
-                  height: '40px',
-                  borderRadius: '12px',
-                  flexShrink: 0
-                }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                  <circle cx="12" cy="10" r="3" />
-                </svg>
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <strong style={{ display: 'block', fontSize: '0.92rem', color: 'var(--bg-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {checkin.checkpoint_name}
-                </strong>
-                <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {checkin.full_name || checkin.user_email || checkin.user_id}
-                </p>
-              </div>
-              <div className="timeline-time-badge" style={{ flexShrink: 0 }}>
-                {formatDateTime(checkin.scanned_at)}
-              </div>
-            </article>
-          ))}
+        <Card>
+          <CardHeader eyebrow="Atividade" title="Check-ins Recentes" meta={`${props.overview?.recent_checkins.length ?? 0} total`} />
+          <div className="p-4">
+            <ScrollableList>
+              {latestCheckins.map((checkin) => (
+                <div
+                  key={checkin.id}
+                  className="flex items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2.5"
+                >
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-zinc-800 text-zinc-400">
+                    <MapPin size={16} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium text-zinc-100">{checkin.checkpoint_name}</span>
+                    <span className="block truncate text-xs text-zinc-500">
+                      {checkin.full_name || checkin.user_email || checkin.user_id}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-xs text-zinc-500">{formatDateTime(checkin.scanned_at)}</span>
+                </div>
+              ))}
 
-          {latestCheckins.length === 0 ? (
-            <EmptyState
-              title="Sem atividade recente"
-              message="Os novos check-ins realizados aparecerão aqui em tempo real."
-            />
-          ) : null}
-        </div>
-      </section>
-
-      {/* Coluna 3: Mural de Certificados (scroll a 3 de 5) */}
-      <section className="panel">
-        <div className="panel-heading inline">
-          <div>
-            <p className="eyebrow">Hall of Fame</p>
-            <h2>Certificados Emitidos</h2>
+              {latestCheckins.length === 0 ? (
+                <EmptyState title="Sem atividade recente" message="Os novos check-ins realizados aparecerão aqui em tempo real." />
+              ) : null}
+            </ScrollableList>
           </div>
-          <span className="muted-badge">{props.recentCertificates.length} total</span>
-        </div>
+        </Card>
 
-        <div className="scrollable-panel-list">
-          {latestCertificates.map((certificate) => (
-            <article className="certificate-card-premium" key={`${certificate.user_id}-${certificate.issued_at}`}>
-              <div className="certificate-icon-glow" style={{ width: '40px', height: '40px', borderRadius: '12px', flexShrink: 0 }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                  <path d="M6 12L10 16L18 8" />
-                </svg>
-              </div>
-              <div className="certificate-details" style={{ minWidth: 0 }}>
-                <strong style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {certificate.full_name || certificate.email || certificate.user_id}
-                </strong>
-                <p>{formatDateTime(certificate.issued_at)}</p>
-              </div>
-              <span className="certificate-stamp" style={{ flexShrink: 0 }}>Válido</span>
-            </article>
-          ))}
+        <Card>
+          <CardHeader eyebrow="Emitidos" title="Certificados Emitidos" meta={`${props.recentCertificates.length} total`} />
+          <div className="p-4">
+            <ScrollableList>
+              {latestCertificates.map((certificate) => (
+                <div
+                  key={`${certificate.user_id}-${certificate.issued_at}`}
+                  className="flex items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2.5"
+                >
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
+                    <Award size={16} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium text-zinc-100">
+                      {certificate.full_name || certificate.email || certificate.user_id}
+                    </span>
+                    <span className="block text-xs text-zinc-500">{formatDateTime(certificate.issued_at)}</span>
+                  </span>
+                  <span className="shrink-0 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-400">
+                    Válido
+                  </span>
+                </div>
+              ))}
 
-          {latestCertificates.length === 0 ? (
-            <EmptyState
-              title="Nenhum certificado emitido"
-              message="A API emitirá o certificado automaticamente assim que a rota for completada."
-            />
-          ) : null}
-        </div>
-      </section>
+              {latestCertificates.length === 0 ? (
+                <EmptyState
+                  title="Nenhum certificado emitido"
+                  message="A API emitirá o certificado automaticamente assim que a rota for completada."
+                />
+              ) : null}
+            </ScrollableList>
+          </div>
+        </Card>
+      </div>
     </div>
   );
 }

@@ -1,6 +1,9 @@
 import type { AdminCheckpoint } from '@ciclorota/shared';
+import { Copy, Eye, EyeOff, MapPin, Plus, Printer, QrCode, Trash2 } from 'lucide-react';
 import { useEffect, useState, type ChangeEventHandler, type FormEventHandler } from 'react';
 import { loadCheckpointQrImage } from '../../services/admin';
+import { EmptyState } from '../../components/admin-ui';
+import { Button, Card, CardHeader, Field, Input, Modal, StatusBadge, Table, TableBody, TableHead, Td, Textarea, Th } from '../../components/ui';
 import type { CheckpointFormState } from '../../types/admin';
 
 export function CheckpointsSection(props: {
@@ -23,6 +26,7 @@ export function CheckpointsSection(props: {
 }) {
   const images = props.currentCheckpoint?.images ?? [];
 
+  const [modalOpen, setModalOpen] = useState(false);
   const [qrImageUrl, setQrImageUrl] = useState<string | null>(null);
   const [qrLoading, setQrLoading] = useState(false);
   const [qrError, setQrError] = useState<string | null>(null);
@@ -31,7 +35,6 @@ export function CheckpointsSection(props: {
 
   const editingCheckpointId = props.editingCheckpointId;
   const accessToken = props.accessToken;
-  // Conteúdo do QR == UUID do checkpoint.
   const qrToken = props.currentCheckpoint?.id ?? '';
 
   useEffect(() => {
@@ -70,7 +73,6 @@ export function CheckpointsSection(props: {
     };
   }, [editingCheckpointId, accessToken]);
 
-  // Reseta a visibilidade do token toda vez que o checkpoint muda.
   useEffect(() => {
     setQrTokenVisible(false);
     setCopyFeedback(null);
@@ -100,282 +102,295 @@ export function CheckpointsSection(props: {
     event.target.value = '';
   };
 
-  const handleSelectChange: ChangeEventHandler<HTMLSelectElement> = (event) => {
-    const selectedId = event.target.value;
+  const openCreateModal = () => {
+    props.onNewCheckpoint();
+    setModalOpen(true);
+  };
 
-    if (selectedId === '') {
-      props.onNewCheckpoint();
-      return;
-    }
-
-    const checkpoint = props.checkpointDirectory.find((item) => item.id === selectedId);
-    if (checkpoint) {
-      props.onStartEdit(checkpoint);
-    }
+  const openEditModal = (checkpoint: AdminCheckpoint) => {
+    props.onStartEdit(checkpoint);
+    setModalOpen(true);
   };
 
   const sortedCheckpoints = [...props.checkpointDirectory].sort((a, b) => a.order - b.order);
 
   return (
-    <section className="panel">
-      <div className="panel-heading inline">
-        <div>
-          <p className="eyebrow">Editor de checkpoint</p>
-          <h2>{props.editingCheckpointId ? 'Atualizar checkpoint existente' : 'Criar novo checkpoint'}</h2>
-        </div>
-        <span className="muted-badge">
-          {props.loadingDirectory ? 'Carregando...' : `${sortedCheckpoints.length} registros`}
-        </span>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-xl font-semibold text-zinc-100">Checkpoints</h1>
+        <Button type="button" onClick={openCreateModal}>
+          <Plus size={16} />
+          Adicionar Checkpoint
+        </Button>
       </div>
 
-      <div className="checkpoint-picker">
-        <label>
-          Selecionar checkpoint
-          <select
-            value={props.editingCheckpointId ?? ''}
-            onChange={handleSelectChange}
-            disabled={props.loadingDirectory}
-          >
-            <option value="">— Criar novo checkpoint —</option>
-            {sortedCheckpoints.map((checkpoint) => (
-              <option key={checkpoint.id} value={checkpoint.id}>
-                {String(checkpoint.order).padStart(2, '0')} — {checkpoint.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+      <Card>
+        <CardHeader
+          eyebrow="Rotas"
+          title="Pontos cadastrados"
+          meta={props.loadingDirectory ? 'Carregando...' : `${sortedCheckpoints.length} registros`}
+        />
 
-      <form className="editor-form" onSubmit={props.onSubmit}>
-        <label>
-          Nome
-          <input
-            type="text"
-            value={props.checkpointForm.name}
-            onChange={(event) => props.onFormChange('name', event.target.value)}
-            placeholder="Ex.: Mirante Norte"
-          />
-        </label>
-
-        <label>
-          Descricao
-          <textarea
-            value={props.checkpointForm.description}
-            onChange={(event) => props.onFormChange('description', event.target.value)}
-            placeholder="Contexto operacional do checkpoint"
-          />
-        </label>
-
-        <label>
-          Ordem
-          <input
-            type="text"
-            value={props.checkpointForm.order}
-            onChange={(event) => props.onFormChange('order', event.target.value)}
-            inputMode="numeric"
-            placeholder="1"
-          />
-        </label>
-
-        <div className="form-grid">
-          <label>
-            Latitude
-            <input
-              type="text"
-              value={props.checkpointForm.latitude}
-              onChange={(event) => props.onFormChange('latitude', event.target.value)}
-              inputMode="decimal"
-              placeholder="-23.123456"
-            />
-          </label>
-          <label>
-            Longitude
-            <input
-              type="text"
-              value={props.checkpointForm.longitude}
-              onChange={(event) => props.onFormChange('longitude', event.target.value)}
-              inputMode="decimal"
-              placeholder="-45.123456"
-            />
-          </label>
-        </div>
-
-        <label>
-          Link do mapa
-          <input
-            type="text"
-            value={props.checkpointForm.map}
-            onChange={(event) => props.onFormChange('map', event.target.value)}
-            placeholder="https://..."
-          />
-        </label>
-
-        <label style={{ marginTop: '16px' }}>
-          Link do Wikiloc
-          <input
-            type="text"
-            value={props.checkpointForm.info}
-            onChange={(event) => props.onFormChange('info', event.target.value)}
-            placeholder="https://wikiloc.com/..."
-          />
-        </label>
-
-        <div className="editor-actions">
-          <button type="submit" disabled={props.savingCheckpoint}>
-            {props.savingCheckpoint
-              ? 'Salvando...'
-              : props.editingCheckpointId
-                ? 'Atualizar checkpoint'
-                : 'Criar checkpoint'}
-          </button>
-          {props.editingCheckpointId ? (
-            <button type="button" className="secondary-button" onClick={props.onNewCheckpoint}>
-              Cancelar edicao
-            </button>
-          ) : null}
-          {props.editingCheckpointId ? (
-            <button
-              type="button"
-              className="danger-button"
-              disabled={props.deletingCheckpoint}
-              onClick={props.onDeleteCheckpoint}
-            >
-              {props.deletingCheckpoint ? 'Excluindo...' : 'Excluir checkpoint'}
-            </button>
-          ) : null}
-        </div>
-      </form>
-
-      <div className="checkpoint-images">
-        <div className="panel-heading inline">
-          <div>
-            <p className="eyebrow">Carrossel</p>
-            <h3>Imagens (Full HD)</h3>
-          </div>
-        </div>
-
-        {props.editingCheckpointId ? (
-          <>
-            <p className="muted-text">Fotos recomendadas em alta resolucao (1920x1080). JPEG, PNG ou WebP, ate 12 MB cada.</p>
-
-            <div className="image-grid">
-              {images.map((image) => (
-                <div key={image.id} className="image-thumb">
-                  <img src={image.url} alt="Imagem do checkpoint" loading="lazy" />
-                  <button
-                    type="button"
-                    className="image-remove"
-                    aria-label="Remover imagem"
-                    disabled={props.uploadingImages}
-                    onClick={() => props.onDeleteImage(image.id)}
-                  >
-                    &times;
-                  </button>
-                </div>
-              ))}
-
-              {images.length === 0 ? (
-                <p className="muted-text">Nenhuma imagem cadastrada ainda.</p>
-              ) : null}
-            </div>
-
-            <label className="image-upload">
-              <span>{props.uploadingImages ? 'Enviando...' : 'Adicionar imagens'}</span>
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                multiple
-                disabled={props.uploadingImages}
-                onChange={handleFilesSelected}
-              />
-            </label>
-          </>
-        ) : (
-          <p className="muted-text">Salve o checkpoint antes de adicionar imagens.</p>
-        )}
-      </div>
-
-      <div className="checkpoint-qr">
-        <div className="panel-heading inline">
-          <div>
-            <p className="eyebrow">Identificação</p>
-            <h3>QR Code do trecho</h3>
-          </div>
-        </div>
-
-        {props.editingCheckpointId ? (
-          <>
-            <p className="muted-text">
-              Imprima e fixe no ponto físico do checkpoint. Quando um ciclista escanear pelo app,
-              este código é o que valida o check-in.
-            </p>
-
-            <div className="qr-card">
-              <div className="qr-image-wrap">
-                {qrLoading ? (
-                  <span className="muted-text">Carregando QR...</span>
-                ) : qrError ? (
-                  <span className="error-text">{qrError}</span>
-                ) : qrImageUrl ? (
-                  <img src={qrImageUrl} alt={`QR Code do checkpoint ${props.currentCheckpoint?.name ?? ''}`} />
-                ) : null}
-              </div>
-
-              <div className={`qr-token${qrTokenVisible ? '' : ' qr-token-hidden'}`}>
-                <code aria-hidden={!qrTokenVisible}>{qrToken}</code>
-
-                <button
-                  type="button"
-                  className="qr-token-eye"
-                  onClick={() => setQrTokenVisible((value) => !value)}
-                  aria-label={qrTokenVisible ? 'Ocultar conteúdo do QR' : 'Mostrar conteúdo do QR'}
-                  title={qrTokenVisible ? 'Ocultar conteúdo' : 'Mostrar conteúdo'}
+        <div className="p-4">
+          <Table>
+            <TableHead>
+              <tr>
+                <Th>Nome</Th>
+                <Th className="hidden md:table-cell">Coordenadas</Th>
+                <Th>Validação</Th>
+                <Th className="hidden sm:table-cell">Imagens</Th>
+                <Th>Ações</Th>
+              </tr>
+            </TableHead>
+            <TableBody>
+              {sortedCheckpoints.map((checkpoint) => (
+                <tr
+                  key={checkpoint.id}
+                  className="cursor-pointer transition-colors hover:bg-zinc-800/40"
+                  onClick={() => openEditModal(checkpoint)}
                 >
-                  {qrTokenVisible ? (
-                    // eye-off
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
-                      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
-                      <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" />
-                      <line x1="1" y1="1" x2="23" y2="23" />
-                    </svg>
-                  ) : (
-                    // eye
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                      <circle cx="12" cy="12" r="3" />
-                    </svg>
-                  )}
-                </button>
+                  <Td className="font-medium text-zinc-100">
+                    <span className="flex items-center gap-2">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-800 text-zinc-400">
+                        <MapPin size={15} />
+                      </span>
+                      {String(checkpoint.order).padStart(2, '0')} — {checkpoint.name}
+                    </span>
+                  </Td>
+                  <Td className="hidden whitespace-nowrap text-zinc-400 md:table-cell">
+                    {checkpoint.latitude.toFixed(5)}, {checkpoint.longitude.toFixed(5)}
+                  </Td>
+                  <Td>
+                    <StatusBadge tone="success">
+                      <QrCode size={12} />
+                      QR Code
+                    </StatusBadge>
+                  </Td>
+                  <Td className="hidden sm:table-cell">{checkpoint.images?.length ?? 0}</Td>
+                  <Td>
+                    <Button
+                      variant="ghost"
+                      type="button"
+                      className="px-2 py-1"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openEditModal(checkpoint);
+                      }}
+                    >
+                      Editar
+                    </Button>
+                  </Td>
+                </tr>
+              ))}
+            </TableBody>
+          </Table>
 
-                {qrTokenVisible ? (
+          {sortedCheckpoints.length === 0 ? (
+            <div className="mt-4">
+              <EmptyState title="Nenhum checkpoint cadastrado" message="Adicione o primeiro ponto da rota." />
+            </div>
+          ) : null}
+        </div>
+      </Card>
+
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        widthClassName="max-w-2xl"
+        eyebrow="Editor de checkpoint"
+        title={props.editingCheckpointId ? 'Atualizar checkpoint existente' : 'Criar novo checkpoint'}
+      >
+        <form className="flex flex-col gap-4" onSubmit={props.onSubmit}>
+          <Field label="Nome">
+            <Input
+              type="text"
+              value={props.checkpointForm.name}
+              onChange={(event) => props.onFormChange('name', event.target.value)}
+              placeholder="Ex.: Mirante Norte"
+            />
+          </Field>
+
+          <Field label="Descrição">
+            <Textarea
+              value={props.checkpointForm.description}
+              onChange={(event) => props.onFormChange('description', event.target.value)}
+              placeholder="Contexto operacional do checkpoint"
+            />
+          </Field>
+
+          <Field label="Ordem">
+            <Input
+              type="text"
+              value={props.checkpointForm.order}
+              onChange={(event) => props.onFormChange('order', event.target.value)}
+              inputMode="numeric"
+              placeholder="1"
+            />
+          </Field>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="Latitude">
+              <Input
+                type="text"
+                value={props.checkpointForm.latitude}
+                onChange={(event) => props.onFormChange('latitude', event.target.value)}
+                inputMode="decimal"
+                placeholder="-23.123456"
+              />
+            </Field>
+            <Field label="Longitude">
+              <Input
+                type="text"
+                value={props.checkpointForm.longitude}
+                onChange={(event) => props.onFormChange('longitude', event.target.value)}
+                inputMode="decimal"
+                placeholder="-45.123456"
+              />
+            </Field>
+          </div>
+
+          <Field label="Link do mapa">
+            <Input
+              type="text"
+              value={props.checkpointForm.map}
+              onChange={(event) => props.onFormChange('map', event.target.value)}
+              placeholder="https://..."
+            />
+          </Field>
+
+          <Field label="Link do Wikiloc">
+            <Input
+              type="text"
+              value={props.checkpointForm.info}
+              onChange={(event) => props.onFormChange('info', event.target.value)}
+              placeholder="https://wikiloc.com/..."
+            />
+          </Field>
+
+          <div className="flex flex-wrap gap-2 pt-2">
+            <Button type="submit" disabled={props.savingCheckpoint}>
+              {props.savingCheckpoint ? 'Salvando...' : props.editingCheckpointId ? 'Atualizar checkpoint' : 'Criar checkpoint'}
+            </Button>
+            {props.editingCheckpointId ? (
+              <Button
+                type="button"
+                variant="danger"
+                disabled={props.deletingCheckpoint}
+                onClick={props.onDeleteCheckpoint}
+              >
+                <Trash2 size={16} />
+                {props.deletingCheckpoint ? 'Excluindo...' : 'Excluir checkpoint'}
+              </Button>
+            ) : null}
+          </div>
+        </form>
+
+        <div className="mt-6 border-t border-zinc-800 pt-6">
+          <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">Carrossel</p>
+          <h3 className="mt-0.5 text-sm font-semibold text-zinc-100">Imagens (Full HD)</h3>
+
+          {props.editingCheckpointId ? (
+            <>
+              <p className="mt-2 text-xs text-zinc-500">
+                Fotos recomendadas em alta resolução (1920x1080). JPEG, PNG ou WebP, até 12 MB cada.
+              </p>
+
+              <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
+                {images.map((image) => (
+                  <div key={image.id} className="group relative aspect-square overflow-hidden rounded-lg border border-zinc-800">
+                    <img src={image.url} alt="Imagem do checkpoint" loading="lazy" className="h-full w-full object-cover" />
+                    <button
+                      type="button"
+                      aria-label="Remover imagem"
+                      disabled={props.uploadingImages}
+                      onClick={() => props.onDeleteImage(image.id)}
+                      className="absolute right-1 top-1 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full bg-rose-600/90 text-white opacity-0 transition-opacity group-hover:opacity-100 disabled:cursor-not-allowed"
+                    >
+                      &times;
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {images.length === 0 ? <p className="mt-2 text-xs text-zinc-500">Nenhuma imagem cadastrada ainda.</p> : null}
+
+              <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-zinc-700 px-3 py-2 text-sm text-zinc-400 hover:border-emerald-500/40 hover:text-emerald-400">
+                <span>{props.uploadingImages ? 'Enviando...' : 'Adicionar imagens'}</span>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  multiple
+                  disabled={props.uploadingImages}
+                  onChange={handleFilesSelected}
+                  className="hidden"
+                />
+              </label>
+            </>
+          ) : (
+            <p className="mt-2 text-xs text-zinc-500">Salve o checkpoint antes de adicionar imagens.</p>
+          )}
+        </div>
+
+        <div className="mt-6 border-t border-zinc-800 pt-6">
+          <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">Identificação</p>
+          <h3 className="mt-0.5 text-sm font-semibold text-zinc-100">QR Code do trecho</h3>
+
+          {props.editingCheckpointId ? (
+            <>
+              <p className="mt-2 text-xs text-zinc-500">
+                Imprima e fixe no ponto físico do checkpoint. Quando um ciclista escanear pelo app, este código é o
+                que valida o check-in.
+              </p>
+
+              <div className="mt-3 flex flex-col items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-950 p-4">
+                <div className="flex h-40 w-40 items-center justify-center">
+                  {qrLoading ? (
+                    <span className="text-xs text-zinc-500">Carregando QR...</span>
+                  ) : qrError ? (
+                    <span className="text-xs text-rose-400">{qrError}</span>
+                  ) : qrImageUrl ? (
+                    <img src={qrImageUrl} alt={`QR Code do checkpoint ${props.currentCheckpoint?.name ?? ''}`} className="h-full w-full" />
+                  ) : null}
+                </div>
+
+                <div className="flex w-full items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2">
+                  <code className={`flex-1 truncate text-xs text-zinc-300 ${qrTokenVisible ? '' : 'blur-sm select-none'}`}>
+                    {qrToken}
+                  </code>
+
                   <button
                     type="button"
-                    className="qr-token-copy"
-                    onClick={handleCopyToken}
-                    aria-label="Copiar código"
+                    onClick={() => setQrTokenVisible((value) => !value)}
+                    aria-label={qrTokenVisible ? 'Ocultar conteúdo do QR' : 'Mostrar conteúdo do QR'}
+                    className="shrink-0 cursor-pointer text-zinc-500 hover:text-zinc-200"
                   >
-                    {copyFeedback ?? 'Copiar'}
+                    {qrTokenVisible ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
-                ) : null}
-              </div>
 
-              <div className="qr-actions">
-                <button type="button" className="qr-print-button" onClick={handlePrintQr}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    <polyline points="6 9 6 2 18 2 18 9" />
-                    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-                    <rect x="6" y="14" width="12" height="8" />
-                  </svg>
+                  {qrTokenVisible ? (
+                    <button
+                      type="button"
+                      onClick={() => void handleCopyToken()}
+                      aria-label="Copiar código"
+                      className="shrink-0 cursor-pointer text-zinc-500 hover:text-zinc-200"
+                    >
+                      <Copy size={16} />
+                    </button>
+                  ) : null}
+                  {copyFeedback ? <span className="shrink-0 text-xs text-emerald-400">{copyFeedback}</span> : null}
+                </div>
+
+                <Button type="button" variant="secondary" onClick={handlePrintQr}>
+                  <Printer size={16} />
                   Imprimir QR Code
-                </button>
+                </Button>
               </div>
-            </div>
-          </>
-        ) : (
-          <p className="muted-text">Salve o checkpoint para gerar o QR Code.</p>
-        )}
-      </div>
-    </section>
+            </>
+          ) : (
+            <p className="mt-2 text-xs text-zinc-500">Salve o checkpoint para gerar o QR Code.</p>
+          )}
+        </div>
+      </Modal>
+    </div>
   );
 }

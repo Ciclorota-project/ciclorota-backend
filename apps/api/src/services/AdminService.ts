@@ -1,6 +1,7 @@
 import { canChangeRole, canManageRole, isAdminRole, type AppRole, resolveRoleFromMetadata } from '../config/admin.js';
 import { supabaseAdmin } from '../config/supabase.js';
 import type { AuthContext } from '../types/auth.js';
+import { escapeIlikePattern, mapAdminListUsersRow, type AdminListUsersRpcRow } from '../utils/adminUsers.js';
 import { HttpError } from '../utils/httpError.js';
 import type { PaginatedResult, PaginationParams } from '../utils/pagination.js';
 import { CertificateService } from './CertificateService.js';
@@ -59,24 +60,28 @@ export class AdminService {
   }
 
   async listUsers(query: AdminUsersQuery): Promise<PaginatedResult<any>> {
-    const allAuthUsers = await this.listAllAuthUsers();
-    const enrichedUsers = await this.enrichUsers(allAuthUsers);
-    const normalizedSearch = query.search?.trim().toLowerCase() ?? '';
+    const trimmedSearch = query.search?.trim();
+    const searchPattern = trimmedSearch ? `%${escapeIlikePattern(trimmedSearch)}%` : null;
 
-    const filteredUsers = enrichedUsers.filter((user) => {
-      if (query.role && user.role !== query.role) {
-        return false;
-      }
-
-      if (!normalizedSearch) {
-        return true;
-      }
-
-      return [user.id, user.email ?? '', user.full_name ?? '', user.role]
-        .some((value) => value.toLowerCase().includes(normalizedSearch));
+    const { data, error } = await supabaseAdmin.rpc('admin_list_users', {
+      p_search_pattern: searchPattern,
+      p_role: query.role ?? null,
+      p_limit: query.limit,
+      p_offset: (query.page - 1) * query.limit
     });
 
-    return paginateItems(filteredUsers, query);
+    if (error) {
+      throw new HttpError(500, `Erro ao listar usuários: ${error.message}`);
+    }
+
+    const rows = (data?.items ?? []) as AdminListUsersRpcRow[];
+
+    return {
+      items: rows.map(mapAdminListUsersRow),
+      page: query.page,
+      limit: query.limit,
+      total: data?.total ?? 0
+    };
   }
 
   async getUserById(userId: string) {
@@ -278,77 +283,6 @@ export class AdminService {
     });
   }
 
-  private async listAuthUsers(limit: number): Promise<AuthDirectoryUser[]> {
-    const { data, error } = await supabaseAdmin.auth.admin.listUsers({
-      page: 1,
-      perPage: limit
-    });
-
-    if (error) {
-      throw new HttpError(500, `Erro ao listar usuários de autenticação: ${error.message}`);
-    }
-
-    return (data.users ?? []).map((user) => {
-      const email = user.email ?? user.user_metadata.email ?? null;
-      const role = resolveRoleFromMetadata({
-        app_metadata: user.app_metadata,
-        user_metadata: user.user_metadata
-      });
-
-      return {
-        id: user.id,
-        email,
-        created_at: user.created_at,
-        role,
-        is_admin: isAdminRole(role),
-        app_metadata: user.app_metadata,
-        user_metadata: user.user_metadata
-      };
-    });
-  }
-
-  private async listAllAuthUsers() {
-    const users: AuthDirectoryUser[] = [];
-    let page = 1;
-    let lastPage = 1;
-
-    do {
-      const { data, error } = await supabaseAdmin.auth.admin.listUsers({
-        page,
-        perPage: 100
-      });
-
-      if (error) {
-        throw new HttpError(500, `Erro ao listar usuários de autenticação: ${error.message}`);
-      }
-
-      users.push(
-        ...(data.users ?? []).map((user) => {
-          const email = user.email ?? user.user_metadata.email ?? null;
-          const role = resolveRoleFromMetadata({
-            app_metadata: user.app_metadata,
-            user_metadata: user.user_metadata
-          });
-
-          return {
-            id: user.id,
-            email,
-            created_at: user.created_at,
-            role,
-            is_admin: isAdminRole(role),
-            app_metadata: user.app_metadata,
-            user_metadata: user.user_metadata
-          };
-        })
-      );
-
-      lastPage = data.lastPage || 1;
-      page += 1;
-    } while (page <= lastPage);
-
-    return users;
-  }
-
   private async getAuthUserById(userId: string): Promise<AuthDirectoryUser> {
     const { data, error } = await supabaseAdmin.auth.admin.getUserById(userId);
 
@@ -395,8 +329,16 @@ export class AdminService {
       return [];
     }
 
-    const authUsers = await this.listAllAuthUsers();
-    return authUsers.filter((user) => userIds.includes(user.id));
+    const { data, error } = await supabaseAdmin.rpc('admin_users_by_ids', { p_ids: userIds });
+
+    if (error) {
+      throw new HttpError(500, `Erro ao listar usuários de autenticação: ${error.message}`);
+    }
+
+    return ((data ?? []) as Array<{ id: string; email: string | null }>).map((user) => ({
+      id: user.id,
+      email: user.email
+    }));
   }
 
   private async listCertificatesForUsers(userIds: string[]) {
@@ -415,16 +357,4 @@ export class AdminService {
 
     return data ?? [];
   }
-}
-
-function paginateItems<T>(items: T[], pagination: PaginationParams): PaginatedResult<T> {
-  const from = (pagination.page - 1) * pagination.limit;
-  const to = from + pagination.limit;
-
-  return {
-    items: items.slice(from, to),
-    page: pagination.page,
-    limit: pagination.limit,
-    total: items.length
-  };
 }

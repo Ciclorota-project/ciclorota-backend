@@ -2,8 +2,9 @@ import type { AdminCheckpoint, AdminCheckpointInput } from '@ciclorota/shared';
 import type { CheckpointFormState, UserDraftState } from '../types/admin';
 
 export const DEFAULT_PAGE_SIZE = 8;
-export const DIRECTORY_USERS_LIMIT = 100;
-export const DIRECTORY_CHECKPOINTS_LIMIT = 250;
+// O backend limita `limit` a 100 por request (apps/api/src/utils/pagination.ts);
+// pedir mais que isso era silenciosamente cortado para 100.
+export const DIRECTORY_CHECKPOINTS_LIMIT = 100;
 export const OVERVIEW_CERTIFICATES_LIMIT = 5;
 
 export function createEmptyUserDraft(): UserDraftState {

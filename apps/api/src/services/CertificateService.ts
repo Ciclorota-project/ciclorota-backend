@@ -175,20 +175,15 @@ export class CertificateService {
       return [];
     }
 
-    const { data, error } = await supabaseAdmin.auth.admin.listUsers({
-      page: 1,
-      perPage: Math.max(userIds.length, 20)
-    });
+    const { data, error } = await supabaseAdmin.rpc('admin_users_by_ids', { p_ids: userIds });
 
     if (error) {
       throw new HttpError(500, `Erro ao listar usuários de autenticação para certificados: ${error.message}`);
     }
 
-    return (data.users ?? [])
-      .filter((user) => userIds.includes(user.id))
-      .map((user) => ({
-        id: user.id,
-        email: user.email ?? user.user_metadata.email ?? null
-      }));
+    return ((data ?? []) as Array<{ id: string; email: string | null }>).map((user) => ({
+      id: user.id,
+      email: user.email
+    }));
   }
 }

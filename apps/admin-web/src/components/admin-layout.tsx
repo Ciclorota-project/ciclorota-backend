@@ -1,79 +1,79 @@
-import type { AdminOverviewResponse, AuthUser, UserProfile } from '@ciclorota/shared';
+import type { AuthUser, UserProfile } from '@ciclorota/shared';
+import { LogOut } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
-import { MetricCard } from './admin-ui';
+import { Button } from './ui';
 import type { AdminView } from '../types/admin';
 import { ADMIN_ROUTE_BY_VIEW } from '../lib/routes';
 
-export function AdminHeader(props: {
-  user: AuthUser;
-  profile: UserProfile | null;
-  overview: AdminOverviewResponse | null;
-  onRefreshOverview: () => void;
-  onLogout: () => void;
-}) {
-  const identity = props.profile?.full_name || props.user.email || props.user.id;
-
-  return (
-    <header className="hero-card">
-      <div className="hero-copy">
-        <p className="eyebrow">Admin autenticado</p>
-        <h1>Painel operacional da Ciclorota em modo de comando real.</h1>
-        <p className="hero-text">
-          O admin web agora esta estruturado para operar usuarios, checkpoints, check-ins e
-          certificados com o backend como fonte unica de verdade.
-        </p>
-        <div className="hero-actions">
-          <span className="status-chip">{identity}</span>
-          <span className="status-chip subtle-chip">Role: {props.user.role}</span>
-          <button className="secondary-button hero-btn-refresh" type="button" onClick={props.onRefreshOverview}>
-            Atualizar overview
-          </button>
-          <button className="secondary-button hero-btn-logout" type="button" onClick={props.onLogout}>
-            Sair
-          </button>
-        </div>
-      </div>
-
-      <div className="hero-grid">
-        <MetricCard label="Usuarios" value={props.overview?.summary.users ?? 0} />
-        <MetricCard label="Check-ins" value={props.overview?.summary.checkins ?? 0} accent />
-        <MetricCard label="Certificados" value={props.overview?.summary.certificates ?? 0} />
-        <MetricCard label="Checkpoints" value={props.overview?.summary.checkpoints ?? 0} />
-      </div>
-    </header>
-  );
-}
-
 const views: Array<{ id: AdminView; label: string }> = [
   { id: 'overview', label: 'Overview' },
-  { id: 'users', label: 'Usuarios' },
+  { id: 'users', label: 'Usuários' },
   { id: 'checkpoints', label: 'Checkpoints' },
   { id: 'checkins', label: 'Check-ins' },
   { id: 'certificates', label: 'Certificados' }
 ];
 
-export function AdminNavigation(props: {
-  loadingDirectories: boolean;
-  userCount: number;
-  checkpointCount: number;
+export function AdminNavbar(props: {
+  user: AuthUser;
+  profile: UserProfile | null;
+  onLogout: () => void;
 }) {
+  const identity = props.profile?.full_name || props.user.email || props.user.id;
+
   return (
-    <section className="nav-panel">
-      <div className="view-switcher">
+    <header className="fixed inset-x-0 top-0 z-40 border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-md">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+        <span className="shrink-0 text-base font-semibold tracking-tight text-zinc-100">
+          Ciclorota <span className="text-emerald-400">Admin</span>
+        </span>
+
+        <nav className="hidden items-center gap-1 md:flex">
+          {views.map((view) => (
+            <NavLink
+              key={view.id}
+              to={ADMIN_ROUTE_BY_VIEW[view.id]}
+              className={({ isActive }) =>
+                `border-b-2 px-3 py-5 text-sm font-medium transition-colors ${
+                  isActive
+                    ? 'border-emerald-500 text-emerald-400'
+                    : 'border-transparent text-zinc-400 hover:text-zinc-100'
+                }`
+              }
+            >
+              {view.label}
+            </NavLink>
+          ))}
+        </nav>
+
+        <div className="flex shrink-0 items-center gap-3">
+          <div className="hidden text-right sm:block">
+            <p className="truncate text-sm font-medium text-zinc-200">{identity}</p>
+            <p className="text-xs capitalize text-zinc-500">{props.user.role}</p>
+          </div>
+          <Button variant="secondary" type="button" onClick={props.onLogout}>
+            <LogOut size={16} />
+            <span className="hidden sm:inline">Sair</span>
+          </Button>
+        </div>
+      </div>
+
+      <nav className="flex items-center gap-1 overflow-x-auto border-t border-zinc-800 px-4 md:hidden">
         {views.map((view) => (
           <NavLink
             key={view.id}
             to={ADMIN_ROUTE_BY_VIEW[view.id]}
-            className={({ isActive }) => `view-tab${isActive ? ' active' : ''}`}
+            className={({ isActive }) =>
+              `shrink-0 border-b-2 px-3 py-3 text-sm font-medium transition-colors ${
+                isActive
+                  ? 'border-emerald-500 text-emerald-400'
+                  : 'border-transparent text-zinc-400 hover:text-zinc-100'
+              }`
+            }
           >
             {view.label}
           </NavLink>
         ))}
-      </div>
-      <div className="nav-meta">
-        <span>{props.loadingDirectories ? 'Sincronizando diretorios...' : `${props.userCount} usuarios no diretorio`}</span>
-        <span>{`${props.checkpointCount} checkpoints carregados`}</span>
-      </div>
-    </section>
+      </nav>
+    </header>
   );
 }

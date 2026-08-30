@@ -12,6 +12,7 @@ const { errorHandler, notFoundHandler } = await import('../middleware/errors.js'
 const { HttpError } = await import('../utils/httpError.js');
 const { parsePaginationQuery } = await import('../utils/pagination.js');
 const { isHttpUrl, isIsoDateString, isUuid } = await import('../utils/validation.js');
+const { escapeIlikePattern, mapAdminListUsersRow } = await import('../utils/adminUsers.js');
 
 test('resolveRoleFromMetadata prioriza app_metadata quando disponível', () => {
   assert.equal(
@@ -43,6 +44,44 @@ test('helpers de validação aceitam apenas formatos esperados', () => {
 test('parsePaginationQuery aplica defaults e limita o máximo', () => {
   assert.deepEqual(parsePaginationQuery(undefined, undefined), { page: 1, limit: 20 });
   assert.deepEqual(parsePaginationQuery('3', '999'), { page: 3, limit: 100 });
+});
+
+test('escapeIlikePattern escapa os curingas do ILIKE antes de virar padrão', () => {
+  assert.equal(escapeIlikePattern('50%'), '50\\%');
+  assert.equal(escapeIlikePattern('a_b'), 'a\\_b');
+  assert.equal(escapeIlikePattern('c:\\path'), 'c:\\\\path');
+  assert.equal(escapeIlikePattern('luis arantes'), 'luis arantes');
+});
+
+test('mapAdminListUsersRow converte a linha da RPC no formato AdminUserRecord', () => {
+  const withCertificate = mapAdminListUsersRow({
+    id: '9f8d8d2b-6be6-4d1a-89b3-0c18860778ea',
+    email: 'luis@example.com',
+    created_at: '2026-08-27T00:35:03.156Z',
+    role: 'admin',
+    full_name: 'Luis Arantes',
+    avatar_url: null,
+    total_checkins: 5,
+    certificate_issued_at: '2026-08-29T23:56:24.000Z'
+  });
+
+  assert.equal(withCertificate.has_certificate, true);
+  assert.equal(withCertificate.is_admin, true);
+  assert.equal(withCertificate.certificate_issued_at, '2026-08-29T23:56:24.000Z');
+
+  const withoutCertificate = mapAdminListUsersRow({
+    id: '11111111-1111-1111-1111-111111111111',
+    email: null,
+    created_at: '2026-08-27T00:35:03.156Z',
+    role: 'user',
+    full_name: null,
+    avatar_url: null,
+    total_checkins: 0,
+    certificate_issued_at: null
+  });
+
+  assert.equal(withoutCertificate.has_certificate, false);
+  assert.equal(withoutCertificate.is_admin, false);
 });
 
 test('configuração de CORS respeita a allowlist quando presente', () => {

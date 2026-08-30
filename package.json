@@ -2,6 +2,7 @@
   "name": "ciclorota-platform",
   "private": true,
   "version": "1.0.0",
+  "type": "module",
   "workspaces": [
     "apps/*",
     "packages/*"

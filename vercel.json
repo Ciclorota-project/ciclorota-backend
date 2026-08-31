@@ -17,10 +17,6 @@
       "destination": "/api"
     },
     {
-      "source": "/certificates/verify/(.*)",
-      "destination": "/api"
-    },
-    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

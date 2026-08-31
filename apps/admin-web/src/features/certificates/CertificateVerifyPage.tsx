@@ -36,7 +36,7 @@ export function CertificateVerifyPage() {
     let cancelled = false;
     setState({ status: 'loading' });
 
-    fetch(`${API_URL}/api/certificates/verify/${encodeURIComponent(code)}`)
+    fetch(`${API_URL}/certificates/verify/${encodeURIComponent(code)}`)
       .then(async (response) => {
         const payload = await response.json().catch(() => null);
 

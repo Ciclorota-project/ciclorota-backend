@@ -35,4 +35,6 @@ export interface CheckpointFormState {
   order: string;
   map: string;
   info: string;
+  geofenceRadiusEnabled: boolean;
+  geofenceRadiusMeters: string;
 }

@@ -1,5 +1,5 @@
 import type { AdminCertificateRecord, PaginationMeta } from '@ciclorota/shared';
-import { Award, Clock } from 'lucide-react';
+import { Award, Clock, ExternalLink, RefreshCw, ShieldCheck } from 'lucide-react';
 import type { FormEventHandler } from 'react';
 import { EmptyState, MetricCard, PaginationControls, UserPicker } from '../../components/admin-ui';
 import { Button, Card, CardHeader, Field, Table, TableBody, TableHead, Td, Th } from '../../components/ui';
@@ -22,10 +22,17 @@ export function CertificatesSection(props: {
   onSubmitFilters: FormEventHandler<HTMLFormElement>;
   onResetFilters: () => void;
   onChangePage: (page: number) => void;
+  onRefresh: () => void;
 }) {
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-xl font-semibold text-zinc-100">Certificados</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold text-zinc-100">Certificados</h1>
+        <Button variant="secondary" type="button" onClick={props.onRefresh} disabled={props.loadingCertificates}>
+          <RefreshCw size={16} className={props.loadingCertificates ? 'animate-spin' : ''} />
+          Atualizar
+        </Button>
+      </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <MetricCard label="Total Emitidos" value={props.totalIssued} icon={Award} accent />
@@ -33,7 +40,7 @@ export function CertificatesSection(props: {
       </div>
 
       <Card>
-        <CardHeader eyebrow="Emissão" title="Emitir certificado para um usuário elegível" meta="Regras validadas no backend" />
+        <CardHeader eyebrow="Emissão" title="Emitir certificado para um usuário elegível" />
 
         <form
           className="flex flex-col gap-3 p-4 sm:flex-row sm:items-end"
@@ -57,7 +64,7 @@ export function CertificatesSection(props: {
         </form>
 
         <p className="px-4 pb-4 text-xs text-zinc-500">
-          A API continua validando elegibilidade por quantidade de checkpoints visitados antes de emitir.
+          A elegibilidade é validada automaticamente pela quantidade de checkpoints visitados antes da emissão.
         </p>
       </Card>
 
@@ -91,6 +98,7 @@ export function CertificatesSection(props: {
               <tr>
                 <Th>Ciclista</Th>
                 <Th>Data de Conclusão</Th>
+                <Th>Código de Confirmação</Th>
               </tr>
             </TableHead>
             <TableBody>
@@ -100,6 +108,19 @@ export function CertificatesSection(props: {
                     {certificate.full_name || certificate.email || certificate.user_id}
                   </Td>
                   <Td>{formatDateTime(certificate.issued_at)}</Td>
+                  <Td>
+                    <a
+                      href={`/certificates/verify/${encodeURIComponent(certificate.verification_code)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Abrir verificação em nova aba"
+                      className="group inline-flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 font-mono text-sm font-semibold tracking-widest text-emerald-400 transition-colors hover:border-emerald-500/40 hover:bg-emerald-500/15 hover:text-emerald-300"
+                    >
+                      <ShieldCheck size={16} className="shrink-0" />
+                      {certificate.verification_code}
+                      <ExternalLink size={13} className="shrink-0 text-emerald-500/60 transition-colors group-hover:text-emerald-300" />
+                    </a>
+                  </Td>
                 </tr>
               ))}
             </TableBody>

@@ -1,4 +1,5 @@
 import type { AdminCheckpoint, AdminRecentCheckin, PaginationMeta } from '@ciclorota/shared';
+import { RefreshCw } from 'lucide-react';
 import type { FormEventHandler } from 'react';
 import { EmptyState, PaginationControls, UserPicker } from '../../components/admin-ui';
 import { Button, Card, CardHeader, Field, Select, Table, TableBody, TableHead, Td, Th } from '../../components/ui';
@@ -16,10 +17,17 @@ export function CheckinsSection(props: {
   onSubmitFilters: FormEventHandler<HTMLFormElement>;
   onResetFilters: () => void;
   onChangePage: (page: number) => void;
+  onRefresh: () => void;
 }) {
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-xl font-semibold text-zinc-100">Check-ins</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold text-zinc-100">Check-ins</h1>
+        <Button variant="secondary" type="button" onClick={props.onRefresh} disabled={props.loadingCheckins}>
+          <RefreshCw size={16} className={props.loadingCheckins ? 'animate-spin' : ''} />
+          Atualizar
+        </Button>
+      </div>
 
       <Card>
         <CardHeader

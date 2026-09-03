@@ -1,21 +1,37 @@
 import { type Request, type Response } from 'express';
 import { AuthService } from '../services/AuthService.js';
+import { LoginRateLimiter, normalizeLoginRateLimitKey } from '../services/LoginRateLimiter.js';
 
 export class AuthController {
   private readonly authService = new AuthService();
+  private readonly loginRateLimiter = new LoginRateLimiter();
 
   async login(request: Request, response: Response): Promise<void> {
+    const { email, password } = request.body ?? {};
+
+    if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) {
+      response.status(400).json({ error: 'E-mail e senha são obrigatórios.' });
+      return;
+    }
+
+    const rateLimitKey = normalizeLoginRateLimitKey(email);
+    const lockedForMs = this.loginRateLimiter.checkLocked(rateLimitKey);
+
+    if (lockedForMs !== null) {
+      const retryAfterSeconds = Math.ceil(lockedForMs / 1000);
+      response.status(429).json({
+        error: `Muitas tentativas de login com este e-mail. Tente novamente em ${retryAfterSeconds}s.`,
+        retry_after_seconds: retryAfterSeconds
+      });
+      return;
+    }
+
     try {
-      const { email, password } = request.body ?? {};
-
-      if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) {
-        response.status(400).json({ error: 'E-mail e senha são obrigatórios.' });
-        return;
-      }
-
       const payload = await this.authService.login(email, password);
+      this.loginRateLimiter.registerSuccess(rateLimitKey);
       response.json(payload);
     } catch (error: any) {
+      this.loginRateLimiter.registerFailure(rateLimitKey);
       response.status(401).json({ error: error.message || 'Falha ao autenticar usuário.' });
     }
   }

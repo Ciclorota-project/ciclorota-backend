@@ -47,6 +47,7 @@ export interface AdminCheckpoint extends Checkpoint {
   order: number;
   map: string | null;
   info?: string | null;
+  geofence_radius_meters: number | null;
 }
 
 export interface CheckinPayload {
@@ -136,6 +137,7 @@ export interface AdminRecentCheckin {
 export interface AdminCertificateRecord {
   user_id: string;
   issued_at: string;
+  verification_code: string;
   email: string | null;
   full_name: string | null;
   avatar_url: string | null;
@@ -189,9 +191,16 @@ export interface AdminCheckpointInput {
   order: number;
   map?: string | null;
   info?: string | null;
+  geofence_radius_meters?: number | null;
 }
 
 export type AdminCheckpointPatchInput = Partial<AdminCheckpointInput>;
+
+export interface AdminSettings {
+  geofence_disabled: boolean;
+}
+
+export type AdminSettingsPatchInput = Partial<AdminSettings>;
 
 export interface AdminCertificateIssueResponse {
   mensagem: string;

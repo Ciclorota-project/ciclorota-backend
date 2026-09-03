@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+import { isSuperAdminRole } from '../config/admin.js';
 import { AuthService } from '../services/AuthService.js';
 
 const authService = new AuthService();
@@ -18,6 +19,22 @@ export async function requireAdmin(request: Request, response: Response, next: N
 
     if (!auth.isAdmin) {
       response.status(403).json({ error: 'Acesso restrito a administradores.' });
+      return;
+    }
+
+    request.auth = auth;
+    next();
+  } catch (error) {
+    response.status(401).json({ error: toErrorMessage(error, 'Token ausente, inválido ou expirado.') });
+  }
+}
+
+export async function requireSuperAdmin(request: Request, response: Response, next: NextFunction) {
+  try {
+    const auth = await authenticateRequest(request);
+
+    if (!isSuperAdminRole(auth.role)) {
+      response.status(403).json({ error: 'Acesso restrito a superadmins.' });
       return;
     }
 

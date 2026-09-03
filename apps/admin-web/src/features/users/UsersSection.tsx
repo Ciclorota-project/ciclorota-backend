@@ -1,5 +1,5 @@
 import type { AppRole, AdminUserRecord, PaginationMeta } from '@ciclorota/shared';
-import { ChevronDown, ChevronUp, ChevronsUpDown, Search } from 'lucide-react';
+import { ChevronDown, ChevronUp, ChevronsUpDown, RefreshCw, Search } from 'lucide-react';
 import { useMemo, useState, type FormEventHandler } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EmptyState, InfoPill, PaginationControls } from '../../components/admin-ui';
@@ -28,6 +28,7 @@ export function UsersSection(props: {
   onSubmitUser: FormEventHandler<HTMLFormElement>;
   onIssueCertificate: (userId: string) => void;
   onChangePage: (page: number) => void;
+  onRefresh: () => void;
 }) {
   const navigate = useNavigate();
 
@@ -144,7 +145,13 @@ export function UsersSection(props: {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-xl font-semibold text-zinc-100">Usuários</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold text-zinc-100">Usuários</h1>
+        <Button variant="secondary" type="button" onClick={props.onRefresh} disabled={props.loadingUsers}>
+          <RefreshCw size={16} className={props.loadingUsers ? 'animate-spin' : ''} />
+          Atualizar
+        </Button>
+      </div>
 
       <Card>
         <CardHeader

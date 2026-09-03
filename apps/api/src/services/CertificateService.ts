@@ -78,7 +78,7 @@ export class CertificateService {
 
     let request = supabaseAdmin
       .from('certificates')
-      .select('user_id, issued_at', {
+      .select('user_id, issued_at, verification_code', {
         count: 'exact'
       })
       .order('issued_at', { ascending: false });
@@ -105,6 +105,7 @@ export class CertificateService {
     const items = (data ?? []).map((certificate) => ({
       user_id: certificate.user_id,
       issued_at: certificate.issued_at,
+      verification_code: certificate.verification_code,
       email: authUserMap.get(certificate.user_id)?.email ?? null,
       full_name: profileMap.get(certificate.user_id)?.full_name ?? null,
       avatar_url: profileMap.get(certificate.user_id)?.avatar_url ?? null

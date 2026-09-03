@@ -10,6 +10,7 @@ interface CheckpointInput {
   order: number;
   map?: string | null;
   info?: string | null;
+  geofence_radius_meters?: number | null;
 }
 
 type CheckpointUpdateInput = Partial<CheckpointInput>;
@@ -40,7 +41,7 @@ export class CheckpointService {
     const { data, error, count } = await supabaseAdmin
       .from('checkpoints')
       .select(
-        'id, created_at, name, description, latitude, longitude, order, map, info, images:checkpoint_images(id, url, position, width, height)',
+        'id, created_at, name, description, latitude, longitude, order, map, info, geofence_radius_meters, images:checkpoint_images(id, url, position, width, height)',
         {
           count: 'exact'
         }
@@ -81,7 +82,7 @@ export class CheckpointService {
     const { data, error } = await supabaseAdmin
       .from('checkpoints')
       .insert([input])
-      .select('id, created_at, name, description, latitude, longitude, order, map, info')
+      .select('id, created_at, name, description, latitude, longitude, order, map, info, geofence_radius_meters')
       .single();
 
     if (error) {
@@ -166,7 +167,7 @@ export class CheckpointService {
       .from('checkpoints')
       .update(payload)
       .eq('id', checkpointId)
-      .select('id, created_at, name, description, latitude, longitude, order, map, info')
+      .select('id, created_at, name, description, latitude, longitude, order, map, info, geofence_radius_meters')
       .single();
 
     if (error) {
@@ -216,5 +217,13 @@ function validateCheckpointInput(input: CheckpointUpdateInput, partial = false) 
 
   if (input.order !== undefined && (!Number.isInteger(input.order) || input.order <= 0)) {
     throw new Error('O campo order precisa ser um inteiro positivo.');
+  }
+
+  if (
+    input.geofence_radius_meters !== undefined &&
+    input.geofence_radius_meters !== null &&
+    (typeof input.geofence_radius_meters !== 'number' || !Number.isFinite(input.geofence_radius_meters) || input.geofence_radius_meters <= 0)
+  ) {
+    throw new Error('O campo geofence_radius_meters precisa ser um número positivo ou null.');
   }
 }

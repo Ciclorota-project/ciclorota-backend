@@ -3,7 +3,7 @@ import type { UserProfile } from '@ciclorota/shared';
 import { toAdminSessionState } from '../lib/auth';
 import { hasSupabaseConfig, supabase } from '../lib/env';
 import { ApiRequestError, toErrorMessage } from '../lib/errors';
-import { fetchAuthMe } from '../services/auth';
+import { fetchAuthMe, loginAdmin } from '../services/auth';
 import type { AdminSessionState } from '../types/admin';
 
 export function useAdminSession() {
@@ -137,13 +137,18 @@ export function useAdminSession() {
       setBusy(true);
       setError(null);
 
-      const { data, error: loginError } = await supabase.auth.signInWithPassword({
-        email,
-        password
+      const { data: loginPayload } = await loginAdmin(email, password);
+
+      // Injeta a sessão retornada pela API no client Supabase para manter a
+      // persistência local e o refresh automático de sempre — sem isso, um
+      // reload da página perderia a sessão mesmo com o login tendo funcionado.
+      const { data, error: setSessionError } = await supabase.auth.setSession({
+        access_token: loginPayload.session.access_token,
+        refresh_token: loginPayload.session.refresh_token
       });
 
-      if (loginError) {
-        throw loginError;
+      if (setSessionError) {
+        throw setSessionError;
       }
 
       if (!data.session) {

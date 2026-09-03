@@ -41,7 +41,8 @@ export class CheckpointController {
         longitude: request.body?.longitude,
         order: request.body?.order,
         map: request.body?.map ?? null,
-        info: request.body?.info ?? null
+        info: request.body?.info ?? null,
+        geofence_radius_meters: request.body?.geofence_radius_meters ?? null
       });
 
       response.status(201).json(checkpoint);
@@ -66,7 +67,10 @@ export class CheckpointController {
         ...(request.body?.longitude !== undefined ? { longitude: request.body.longitude } : {}),
         ...(request.body?.order !== undefined ? { order: request.body.order } : {}),
         ...(request.body?.map !== undefined ? { map: request.body.map } : {}),
-        ...(request.body?.info !== undefined ? { info: request.body.info } : {})
+        ...(request.body?.info !== undefined ? { info: request.body.info } : {}),
+        ...(request.body?.geofence_radius_meters !== undefined
+          ? { geofence_radius_meters: request.body.geofence_radius_meters }
+          : {})
       });
 
       response.json(checkpoint);

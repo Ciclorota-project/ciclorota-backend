@@ -23,11 +23,15 @@ export function createEmptyCheckpointForm(): CheckpointFormState {
     longitude: '',
     order: '',
     map: '',
-    info: ''
+    info: '',
+    geofenceRadiusEnabled: false,
+    geofenceRadiusMeters: ''
   };
 }
 
 export function toCheckpointForm(checkpoint: AdminCheckpoint): CheckpointFormState {
+  const hasCustomRadius = checkpoint.geofence_radius_meters !== null && checkpoint.geofence_radius_meters !== undefined;
+
   return {
     name: checkpoint.name,
     description: checkpoint.description,
@@ -35,7 +39,9 @@ export function toCheckpointForm(checkpoint: AdminCheckpoint): CheckpointFormSta
     longitude: String(checkpoint.longitude),
     order: String(checkpoint.order),
     map: checkpoint.map ?? '',
-    info: checkpoint.info ?? ''
+    info: checkpoint.info ?? '',
+    geofenceRadiusEnabled: hasCustomRadius,
+    geofenceRadiusMeters: hasCustomRadius ? String(checkpoint.geofence_radius_meters) : ''
   };
 }
 
@@ -60,6 +66,16 @@ export function toCheckpointPayload(form: CheckpointFormState): AdminCheckpointI
     throw new Error('A ordem precisa ser um numero inteiro positivo.');
   }
 
+  let geofenceRadiusMeters: number | null = null;
+
+  if (form.geofenceRadiusEnabled) {
+    geofenceRadiusMeters = Number(form.geofenceRadiusMeters);
+
+    if (!Number.isFinite(geofenceRadiusMeters) || geofenceRadiusMeters <= 0) {
+      throw new Error('O raio do geofence precisa ser um número positivo (em metros).');
+    }
+  }
+
   return {
     name,
     description,
@@ -67,6 +83,7 @@ export function toCheckpointPayload(form: CheckpointFormState): AdminCheckpointI
     longitude,
     order,
     map: map || null,
-    info: info || null
+    info: info || null,
+    geofence_radius_meters: geofenceRadiusMeters
   };
 }

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { uploadCheckpointImages, uploadProfileAvatar } from '../config/upload.js';
-import { requireAdmin, requireAuth } from '../middleware/auth.js';
+import { requireAdmin, requireAuth, requireSuperAdmin } from '../middleware/auth.js';
 import { AdminController } from '../controllers/AdminController.js';
 import { AuthController } from '../controllers/AuthController.js';
 import { CertificateController } from '../controllers/CertificateController.js';
@@ -8,6 +8,7 @@ import { CheckinController } from '../controllers/CheckinController.js';
 import { CheckpointController } from '../controllers/CheckpointController.js';
 import { ProfileController } from '../controllers/ProfileController.js';
 import { ProgressController } from '../controllers/ProgressController.js';
+import { SettingsController } from '../controllers/SettingsController.js';
 
 const routes = Router();
 const adminController = new AdminController();
@@ -17,6 +18,7 @@ const checkinController = new CheckinController();
 const progressController = new ProgressController();
 const certificateController = new CertificateController();
 const profileController = new ProfileController();
+const settingsController = new SettingsController();
 
 routes.get('/', (request, response) => {
   response.json({ mensagem: 'Bem-vindo à API do Passaporte da Ciclorota! 🚴‍♂️' });
@@ -40,6 +42,8 @@ routes.post('/me/checkins', requireAuth, checkinController.storeMe.bind(checkinC
 routes.post('/me/certificates', requireAuth, certificateController.storeMe.bind(certificateController));
 routes.get('/me/certificates/pdf', requireAuth, certificateController.downloadMe.bind(certificateController));
 
+routes.get('/admin/settings', requireAdmin, settingsController.show.bind(settingsController));
+routes.patch('/admin/settings', requireSuperAdmin, settingsController.update.bind(settingsController));
 routes.get('/admin/overview', requireAdmin, adminController.overview.bind(adminController));
 routes.get('/admin/users', requireAdmin, adminController.users.bind(adminController));
 routes.get('/admin/users/:userId', requireAdmin, adminController.showUser.bind(adminController));

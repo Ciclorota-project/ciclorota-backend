@@ -9,6 +9,8 @@ import type {
   AdminCheckinsQuery,
   AdminOverviewResponse,
   AdminRecentCheckin,
+  AdminSettings,
+  AdminSettingsPatchInput,
   AdminUserPatchInput,
   AdminUserRecord,
   AdminUsersQuery
@@ -19,6 +21,18 @@ import { buildCertificatesQueryString, buildCheckinsQueryString, buildUsersQuery
 
 export function fetchAdminOverview(accessToken: string) {
   return requestJson<AdminOverviewResponse>('/admin/overview', { accessToken });
+}
+
+export function fetchAdminSettings(accessToken: string) {
+  return requestJson<AdminSettings>('/admin/settings', { accessToken });
+}
+
+export function updateAdminSettings(accessToken: string, payload: AdminSettingsPatchInput) {
+  return requestJson<AdminSettings>('/admin/settings', {
+    method: 'PATCH',
+    accessToken,
+    body: payload
+  });
 }
 
 export function fetchAdminUsers(accessToken: string, query: AdminUsersQuery) {

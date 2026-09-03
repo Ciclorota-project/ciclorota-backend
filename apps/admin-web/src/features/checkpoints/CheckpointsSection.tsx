@@ -1,9 +1,9 @@
 import type { AdminCheckpoint } from '@ciclorota/shared';
-import { Copy, Eye, EyeOff, MapPin, Plus, Printer, QrCode, Trash2 } from 'lucide-react';
+import { Copy, Eye, EyeOff, MapPin, Plus, Printer, QrCode, RefreshCw, Trash2 } from 'lucide-react';
 import { useEffect, useState, type ChangeEventHandler, type FormEventHandler } from 'react';
 import { loadCheckpointQrImage } from '../../services/admin';
 import { EmptyState } from '../../components/admin-ui';
-import { Button, Card, CardHeader, Field, Input, Modal, StatusBadge, Table, TableBody, TableHead, Td, Textarea, Th } from '../../components/ui';
+import { Button, Card, CardHeader, Field, Input, Modal, StatusBadge, Switch, Table, TableBody, TableHead, Td, Textarea, Th } from '../../components/ui';
 import type { CheckpointFormState } from '../../types/admin';
 
 export function CheckpointsSection(props: {
@@ -16,13 +16,18 @@ export function CheckpointsSection(props: {
   uploadingImages: boolean;
   deletingCheckpoint: boolean;
   accessToken: string;
+  geofenceDisabled: boolean;
+  savingGeofenceSetting: boolean;
+  isSuperAdmin: boolean;
   onSubmit: FormEventHandler<HTMLFormElement>;
-  onFormChange: (field: keyof CheckpointFormState, value: string) => void;
+  onFormChange: (field: keyof CheckpointFormState, value: string | boolean) => void;
   onStartEdit: (checkpoint: AdminCheckpoint) => void;
   onNewCheckpoint: () => void;
   onUploadImages: (files: File[]) => void;
   onDeleteImage: (imageId: string) => void;
   onDeleteCheckpoint: () => void;
+  onToggleGeofence: (disabled: boolean) => void;
+  onRefresh: () => void;
 }) {
   const images = props.currentCheckpoint?.images ?? [];
 
@@ -118,11 +123,50 @@ export function CheckpointsSection(props: {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-xl font-semibold text-zinc-100">Checkpoints</h1>
-        <Button type="button" onClick={openCreateModal}>
-          <Plus size={16} />
-          Adicionar Checkpoint
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" type="button" onClick={props.onRefresh} disabled={props.loadingDirectory}>
+            <RefreshCw size={16} className={props.loadingDirectory ? 'animate-spin' : ''} />
+            Atualizar
+          </Button>
+          <Button type="button" onClick={openCreateModal}>
+            <Plus size={16} />
+            Adicionar Checkpoint
+          </Button>
+        </div>
       </div>
+
+      <Card>
+        <CardHeader
+          eyebrow="Validação"
+          title="Geofence dos check-ins"
+          meta="Controle global"
+        />
+
+        <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <Switch
+            checked={!props.geofenceDisabled}
+            disabled={props.savingGeofenceSetting || !props.isSuperAdmin}
+            offTone="danger"
+            onChange={(enabled) => props.onToggleGeofence(!enabled)}
+            label="Validação de distância dos check-ins"
+            description={
+              props.geofenceDisabled
+                ? 'Check-ins são aceitos em qualquer distância do checkpoint, em toda a rota.'
+                : 'Check-ins fora do raio permitido de cada checkpoint são rejeitados (padrão: 100m).'
+            }
+          />
+
+          <StatusBadge tone={props.geofenceDisabled ? 'danger' : 'success'}>
+            {props.geofenceDisabled ? 'Geofence desligado' : 'Geofence ligado'}
+          </StatusBadge>
+        </div>
+
+        {!props.isSuperAdmin ? (
+          <p className="px-4 pb-4 text-xs text-zinc-500">
+            Apenas contas `superadmin` podem ligar ou desligar o geofence global.
+          </p>
+        ) : null}
+      </Card>
 
       <Card>
         <CardHeader
@@ -247,6 +291,29 @@ export function CheckpointsSection(props: {
                 placeholder="-45.123456"
               />
             </Field>
+          </div>
+
+          <div className="rounded-lg border border-zinc-800 p-3">
+            <Switch
+              checked={props.checkpointForm.geofenceRadiusEnabled}
+              onChange={(checked) => props.onFormChange('geofenceRadiusEnabled', checked)}
+              label="Raio de geofence customizado"
+              description="Desligado usa o padrão de 100m para este checkpoint."
+            />
+
+            {props.checkpointForm.geofenceRadiusEnabled ? (
+              <div className="mt-3">
+                <Field label="Raio permitido (metros)">
+                  <Input
+                    type="text"
+                    value={props.checkpointForm.geofenceRadiusMeters}
+                    onChange={(event) => props.onFormChange('geofenceRadiusMeters', event.target.value)}
+                    inputMode="decimal"
+                    placeholder="100"
+                  />
+                </Field>
+              </div>
+            ) : null}
           </div>
 
           <Field label="Link do mapa">

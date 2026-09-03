@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import type {
   AdminCertificateRecord,
@@ -8,6 +8,7 @@ import type {
   AdminCheckinsQuery,
   AdminOverviewResponse,
   AdminRecentCheckin,
+  AdminSettings,
   AdminUserPatchInput,
   AdminUserRecord,
   AdminUsersQuery
@@ -15,6 +16,7 @@ import type {
 import { AdminNavbar } from '../components/admin-layout';
 import { ConfirmDialog } from '../components/admin-ui';
 import { AccessDeniedView, LoginView, MissingSupabaseConfigView, RestoringSessionView } from '../components/auth-views';
+import { ToastStack, type ToastItem } from '../components/toast';
 import { CertificatesSection } from '../features/certificates/CertificatesSection';
 import { CheckinsSection } from '../features/checkins/CheckinsSection';
 import { CheckpointsSection } from '../features/checkpoints/CheckpointsSection';
@@ -29,7 +31,6 @@ import {
   toCheckpointForm,
   toCheckpointPayload
 } from '../lib/admin-state';
-import { API_URL } from '../lib/env';
 import { ApiRequestError, toErrorMessage } from '../lib/errors';
 import { createEmptyPagination, createPaginationFromLength } from '../lib/pagination';
 import {
@@ -50,10 +51,12 @@ import {
   fetchAdminCheckins,
   fetchAdminCheckpoints,
   fetchAdminOverview,
+  fetchAdminSettings,
   fetchAdminUser,
   fetchAdminUsers,
   issueAdminCertificate,
   updateAdminCheckpoint,
+  updateAdminSettings,
   updateAdminUser,
   uploadCheckpointImages
 } from '../services/admin';
@@ -65,9 +68,37 @@ import type {
   UsersFilterState
 } from '../types/admin';
 
+// Evita refazer a requisição de uma aba sempre que o usuário volta pra ela:
+// cada aba com dados paginados/filtrados só recarrega quando a query mudou
+// (filtro, página etc.) ou ainda não foi carregada nesta sessão. Trocar de
+// aba e voltar reaproveita o que já está em memória; o botão "Atualizar" de
+// cada aba força uma nova busca quando necessário.
+function useLoadOnceGuard<Query>() {
+  const loadedRef = useRef(false);
+  const lastQueryRef = useRef<Query | undefined>(undefined);
+
+  function shouldSkip(query: Query): boolean {
+    const isSameQuery = loadedRef.current && JSON.stringify(lastQueryRef.current) === JSON.stringify(query);
+
+    if (isSameQuery) {
+      return true;
+    }
+
+    loadedRef.current = true;
+    lastQueryRef.current = query;
+    return false;
+  }
+
+  return { shouldSkip };
+}
+
 function AdminApp() {
   const location = useLocation();
   const navigate = useNavigate();
+
+  const usersLoadGuard = useLoadOnceGuard<AdminUsersQuery>();
+  const checkinsLoadGuard = useLoadOnceGuard<AdminCheckinsQuery>();
+  const certificatesLoadGuard = useLoadOnceGuard<AdminCertificatesQuery>();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -77,8 +108,6 @@ function AdminApp() {
   const [selectedUser, setSelectedUser] = useState<AdminUserRecord | null>(null);
   const [loadingSelectedUser, setLoadingSelectedUser] = useState(false);
   const [userDraft, setUserDraft] = useState<UserDraftState>(createEmptyUserDraft());
-  const [checkpoints, setCheckpoints] = useState<AdminCheckpoint[]>([]);
-  const [checkpointsPagination, setCheckpointsPagination] = useState(createEmptyPagination());
   const [checkpointDirectory, setCheckpointDirectory] = useState<AdminCheckpoint[]>([]);
   const [editingCheckpointId, setEditingCheckpointId] = useState<string | null>(null);
   const [checkpointForm, setCheckpointForm] = useState<CheckpointFormState>(createEmptyCheckpointForm());
@@ -89,15 +118,15 @@ function AdminApp() {
   const [certificatesPagination, setCertificatesPagination] = useState(createEmptyPagination());
   const [usersQuery, setUsersQuery] = useState<AdminUsersQuery>({ page: 1, limit: DEFAULT_PAGE_SIZE });
   const [usersFilters, setUsersFilters] = useState<UsersFilterState>({ search: '', role: 'all' });
-  const [checkpointsPage, setCheckpointsPage] = useState(1);
   const [checkinsQuery, setCheckinsQuery] = useState<AdminCheckinsQuery>({ page: 1, limit: DEFAULT_PAGE_SIZE });
   const [checkinsFilters, setCheckinsFilters] = useState<CheckinsFilterState>({ userId: '', checkpointId: '' });
   const [certificatesQuery, setCertificatesQuery] = useState<AdminCertificatesQuery>({ page: 1, limit: DEFAULT_PAGE_SIZE });
   const [certificatesFilters, setCertificatesFilters] = useState<CertificatesFilterState>({ userId: '' });
   const [certificateIssueUserId, setCertificateIssueUserId] = useState('');
+  const [settings, setSettings] = useState<AdminSettings | null>(null);
+  const [savingGeofenceSetting, setSavingGeofenceSetting] = useState(false);
   const [loadingOverview, setLoadingOverview] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(false);
-  const [loadingCheckpoints, setLoadingCheckpoints] = useState(false);
   const [loadingCheckins, setLoadingCheckins] = useState(false);
   const [loadingCertificates, setLoadingCertificates] = useState(false);
   const [loadingDirectories, setLoadingDirectories] = useState(false);
@@ -106,9 +135,10 @@ function AdminApp() {
   const [uploadingImages, setUploadingImages] = useState(false);
   const [deletingCheckpoint, setDeletingCheckpoint] = useState(false);
   const [deleteCheckpointModalOpen, setDeleteCheckpointModalOpen] = useState(false);
+  const [geofenceConfirmOpen, setGeofenceConfirmOpen] = useState(false);
   const [issuingCertificate, setIssuingCertificate] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<string | null>(null);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
 
   const {
     hasSupabaseConfig,
@@ -151,16 +181,22 @@ function AdminApp() {
       setRecentCertificates([]);
       setCheckpointDirectory([]);
       setSelectedUser(null);
+      setSettings(null);
       return;
     }
 
     void loadOverview(session.accessToken);
     void loadRecentCertificates(session.accessToken);
     void loadCheckpointDirectory(session.accessToken);
+    void loadSettings(session.accessToken);
   }, [session?.accessToken, session?.user.is_admin]);
 
   useEffect(() => {
     if (!session?.user.is_admin || currentView !== 'users') {
+      return;
+    }
+
+    if (usersLoadGuard.shouldSkip(usersQuery)) {
       return;
     }
 
@@ -216,15 +252,11 @@ function AdminApp() {
   }, [currentView, selectedUserId, session?.accessToken, session?.user.is_admin]);
 
   useEffect(() => {
-    if (!session?.user.is_admin || currentView !== 'checkpoints') {
+    if (!session?.user.is_admin || currentView !== 'checkins') {
       return;
     }
 
-    void loadCheckpoints(session.accessToken, checkpointsPage);
-  }, [currentView, checkpointsPage, session?.accessToken, session?.user.is_admin]);
-
-  useEffect(() => {
-    if (!session?.user.is_admin || currentView !== 'checkins') {
+    if (checkinsLoadGuard.shouldSkip(checkinsQuery)) {
       return;
     }
 
@@ -233,6 +265,10 @@ function AdminApp() {
 
   useEffect(() => {
     if (!session?.user.is_admin || currentView !== 'certificates') {
+      return;
+    }
+
+    if (certificatesLoadGuard.shouldSkip(certificatesQuery)) {
       return;
     }
 
@@ -257,7 +293,7 @@ function AdminApp() {
     }
 
     navigate(loginNextPath ?? DEFAULT_ADMIN_ROUTE, { replace: true });
-    setFeedback('Sessao Supabase iniciada com sucesso.');
+    pushToast('success', 'Login realizado com sucesso.');
     setPassword('');
   }
 
@@ -307,6 +343,58 @@ function AdminApp() {
     }
   }
 
+  async function loadSettings(accessToken: string) {
+    try {
+      const payload = await fetchAdminSettings(accessToken);
+      setSettings(payload.data);
+    } catch (caughtError) {
+      await handleAppError(caughtError);
+    }
+  }
+
+  function requestToggleGeofence(disabled: boolean) {
+    // Ligar de volta é seguro e aplica na hora; desligar remove uma proteção
+    // contra check-ins fraudulentos em toda a rota, então pede confirmação.
+    if (disabled) {
+      setGeofenceConfirmOpen(true);
+      return;
+    }
+
+    void applyGeofenceToggle(false);
+  }
+
+  async function confirmDisableGeofence() {
+    await applyGeofenceToggle(true);
+    setGeofenceConfirmOpen(false);
+  }
+
+  async function applyGeofenceToggle(disabled: boolean) {
+    if (!session?.accessToken) {
+      return;
+    }
+
+    const previousSettings = settings;
+    setSettings((currentValue) => ({ ...(currentValue ?? { geofence_disabled: false }), geofence_disabled: disabled }));
+
+    try {
+      setSavingGeofenceSetting(true);
+      resetMessages();
+      const payload = await updateAdminSettings(session.accessToken, { geofence_disabled: disabled });
+      setSettings(payload.data);
+      pushToast(
+        'success',
+        payload.data.geofence_disabled
+          ? 'Geofence desligado para toda a rota.'
+          : 'Geofence ligado novamente para toda a rota.'
+      );
+    } catch (caughtError) {
+      setSettings(previousSettings);
+      await handleAppError(caughtError);
+    } finally {
+      setSavingGeofenceSetting(false);
+    }
+  }
+
   async function loadUsers(accessToken: string, query: AdminUsersQuery) {
     try {
       setLoadingUsers(true);
@@ -341,23 +429,6 @@ function AdminApp() {
       setSelectedUser(null);
     } finally {
       setLoadingSelectedUser(false);
-    }
-  }
-
-  async function loadCheckpoints(accessToken: string, page: number) {
-    try {
-      setLoadingCheckpoints(true);
-      const payload = await fetchAdminCheckpoints(accessToken, { page, limit: DEFAULT_PAGE_SIZE });
-      setCheckpoints(payload.data);
-      setCheckpointsPagination(
-        payload.pagination ?? createPaginationFromLength(payload.data.length, DEFAULT_PAGE_SIZE, page)
-      );
-    } catch (caughtError) {
-      await handleAppError(caughtError);
-      setCheckpoints([]);
-      setCheckpointsPagination(createEmptyPagination());
-    } finally {
-      setLoadingCheckpoints(false);
     }
   }
 
@@ -418,7 +489,7 @@ function AdminApp() {
 
       const result = await updateAdminUser(session.accessToken, selectedUserId, payload);
 
-      setFeedback('Usuario atualizado com sucesso.');
+      pushToast('success', 'Usuario atualizado com sucesso.');
       setSelectedUser(result.data);
       setUserDraft({
         full_name: result.data.full_name ?? '',
@@ -449,7 +520,7 @@ function AdminApp() {
 
       const payload = await issueAdminCertificate(session.accessToken, targetUserId);
 
-      setFeedback(payload.data.mensagem);
+      pushToast('success', payload.data.mensagem);
       await Promise.all([
         loadOverview(session.accessToken),
         loadUsers(session.accessToken, usersQuery),
@@ -481,12 +552,11 @@ function AdminApp() {
         ? await updateAdminCheckpoint(session.accessToken, editingCheckpointId, payload satisfies AdminCheckpointPatchInput)
         : await createAdminCheckpoint(session.accessToken, payload);
 
-      setFeedback(editingCheckpointId ? 'Checkpoint atualizado com sucesso.' : 'Checkpoint criado com sucesso.');
+      pushToast('success', editingCheckpointId ? 'Checkpoint atualizado com sucesso.' : 'Checkpoint criado com sucesso.');
       setEditingCheckpointId(result.data.id);
       setCheckpointForm(toCheckpointForm(result.data));
       await Promise.all([
         loadOverview(session.accessToken),
-        loadCheckpoints(session.accessToken, checkpointsPage),
         loadCheckpointDirectory(session.accessToken)
       ]);
     } catch (caughtError) {
@@ -496,7 +566,7 @@ function AdminApp() {
     }
   }
 
-  function handleCheckpointFormChange(field: keyof CheckpointFormState, value: string) {
+  function handleCheckpointFormChange(field: keyof CheckpointFormState, value: string | boolean) {
     setCheckpointForm((currentValue) => ({
       ...currentValue,
       [field]: value
@@ -529,13 +599,12 @@ function AdminApp() {
       setDeletingCheckpoint(true);
       resetMessages();
       await deleteAdminCheckpoint(session.accessToken, editingCheckpointId);
-      setFeedback('Checkpoint excluído com sucesso.');
+      pushToast('success', 'Checkpoint excluído com sucesso.');
       setEditingCheckpointId(null);
       setCheckpointForm(createEmptyCheckpointForm());
       setDeleteCheckpointModalOpen(false);
       await Promise.all([
         loadOverview(session.accessToken),
-        loadCheckpoints(session.accessToken, checkpointsPage),
         loadCheckpointDirectory(session.accessToken)
       ]);
     } catch (caughtError) {
@@ -554,9 +623,8 @@ function AdminApp() {
       setUploadingImages(true);
       resetMessages();
       await uploadCheckpointImages(session.accessToken, editingCheckpointId, files);
-      setFeedback(files.length > 1 ? 'Imagens enviadas com sucesso.' : 'Imagem enviada com sucesso.');
+      pushToast('success', files.length > 1 ? 'Imagens enviadas com sucesso.' : 'Imagem enviada com sucesso.');
       await Promise.all([
-        loadCheckpoints(session.accessToken, checkpointsPage),
         loadCheckpointDirectory(session.accessToken)
       ]);
     } catch (caughtError) {
@@ -575,9 +643,8 @@ function AdminApp() {
       setUploadingImages(true);
       resetMessages();
       await deleteCheckpointImage(session.accessToken, editingCheckpointId, imageId);
-      setFeedback('Imagem removida com sucesso.');
+      pushToast('success', 'Imagem removida com sucesso.');
       await Promise.all([
-        loadCheckpoints(session.accessToken, checkpointsPage),
         loadCheckpointDirectory(session.accessToken)
       ]);
     } catch (caughtError) {
@@ -620,7 +687,6 @@ function AdminApp() {
     await signOut();
     navigate('/login', { replace: true });
     setPassword('');
-    setFeedback(null);
     setError(null);
   }
 
@@ -634,11 +700,51 @@ function AdminApp() {
     void loadCheckpointDirectory(session.accessToken);
   }
 
+  function handleRefreshUsers() {
+    if (!session?.accessToken) {
+      return;
+    }
+
+    void loadUsers(session.accessToken, usersQuery);
+  }
+
+  function handleRefreshCheckpoints() {
+    if (!session?.accessToken) {
+      return;
+    }
+
+    void loadCheckpointDirectory(session.accessToken);
+  }
+
+  function handleRefreshCheckins() {
+    if (!session?.accessToken) {
+      return;
+    }
+
+    void loadCheckins(session.accessToken, checkinsQuery);
+  }
+
+  function handleRefreshCertificates() {
+    if (!session?.accessToken) {
+      return;
+    }
+
+    void loadCertificates(session.accessToken, certificatesQuery);
+  }
+
   function resetMessages() {
     clearAuthError();
     setError(null);
-    setFeedback(null);
   }
+
+  function pushToast(type: ToastItem['type'], message: string) {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    setToasts((current) => [...current, { id, type, message }]);
+  }
+
+  const dismissToast = useCallback((id: string) => {
+    setToasts((current) => current.filter((toast) => toast.id !== id));
+  }, []);
 
   function resetAdminWorkspace() {
     setOverview(null);
@@ -646,8 +752,6 @@ function AdminApp() {
     setUsersPagination(createEmptyPagination());
     setSelectedUser(null);
     setUserDraft(createEmptyUserDraft());
-    setCheckpoints([]);
-    setCheckpointsPagination(createEmptyPagination());
     setCheckpointDirectory([]);
     setEditingCheckpointId(null);
     setCheckpointForm(createEmptyCheckpointForm());
@@ -658,13 +762,14 @@ function AdminApp() {
     setCertificatesPagination(createEmptyPagination());
     setCertificateIssueUserId('');
     setLoadingSelectedUser(false);
+    setSettings(null);
   }
 
   async function handleAppError(caughtError: unknown, options?: { logoutOnUnauthorized?: boolean }) {
     if (caughtError instanceof ApiRequestError && caughtError.status === 401 && options?.logoutOnUnauthorized !== false) {
       await signOut();
       navigate(buildLoginPath(`${location.pathname}${location.search}`), { replace: true });
-      setError('Sua sessao expirou. Entre novamente para continuar.');
+      pushToast('error', 'Sua sessao expirou. Entre novamente para continuar.');
       return;
     }
 
@@ -677,7 +782,7 @@ function AdminApp() {
       navigate('/users', { replace: true });
     }
 
-    setError(toErrorMessage(caughtError));
+    pushToast('error', toErrorMessage(caughtError));
   }
 
   if (restoring) {
@@ -685,7 +790,7 @@ function AdminApp() {
   }
 
   if (!hasSupabaseConfig) {
-    return <MissingSupabaseConfigView apiUrl={API_URL} />;
+    return <MissingSupabaseConfigView />;
   }
 
   if (!session) {
@@ -695,7 +800,6 @@ function AdminApp() {
 
     return (
       <LoginView
-        apiUrl={API_URL}
         email={email}
         password={password}
         busy={busy}
@@ -711,7 +815,6 @@ function AdminApp() {
     return (
       <AccessDeniedView
         userLabel={session.user.email ?? session.user.id}
-        role={session.user.role}
         onLogout={() => void handleLogout()}
       />
     );
@@ -734,19 +837,9 @@ function AdminApp() {
   return (
     <div className="min-h-screen bg-zinc-950">
       <AdminNavbar user={session.user} profile={profile} onLogout={() => void handleLogout()} />
+      <ToastStack toasts={toasts} onDismiss={dismissToast} />
 
       <main className="mx-auto max-w-7xl px-4 pb-8 pt-28 sm:px-6 md:pt-24 lg:px-8">
-        {visibleError ? (
-          <div className="mb-6 rounded-lg border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">
-            {visibleError}
-          </div>
-        ) : null}
-        {feedback ? (
-          <div className="mb-6 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
-            {feedback}
-          </div>
-        ) : null}
-
         {currentView === 'overview' ? (
           <OverviewSection
             overview={overview}
@@ -789,6 +882,7 @@ function AdminApp() {
             onSubmitUser={handleSaveUser}
             onIssueCertificate={(userId) => void handleIssueCertificate(userId)}
             onChangePage={(page) => setUsersQuery((currentValue) => ({ ...currentValue, page }))}
+            onRefresh={handleRefreshUsers}
           />
         ) : null}
 
@@ -803,6 +897,9 @@ function AdminApp() {
             uploadingImages={uploadingImages}
             deletingCheckpoint={deletingCheckpoint}
             accessToken={session?.accessToken ?? ''}
+            geofenceDisabled={settings?.geofence_disabled ?? false}
+            savingGeofenceSetting={savingGeofenceSetting}
+            isSuperAdmin={Boolean(canChangeRoles)}
             onSubmit={handleSubmitCheckpoint}
             onFormChange={handleCheckpointFormChange}
             onStartEdit={handleStartCheckpointEdit}
@@ -810,6 +907,8 @@ function AdminApp() {
             onUploadImages={(files) => void handleUploadCheckpointImages(files)}
             onDeleteImage={(imageId) => void handleDeleteCheckpointImage(imageId)}
             onDeleteCheckpoint={requestDeleteCheckpoint}
+            onToggleGeofence={requestToggleGeofence}
+            onRefresh={handleRefreshCheckpoints}
           />
         ) : null}
 
@@ -828,6 +927,7 @@ function AdminApp() {
               setCheckinsQuery({ page: 1, limit: checkinsQuery.limit ?? DEFAULT_PAGE_SIZE });
             }}
             onChangePage={(page) => setCheckinsQuery((currentValue) => ({ ...currentValue, page }))}
+            onRefresh={handleRefreshCheckins}
           />
         ) : null}
 
@@ -853,6 +953,7 @@ function AdminApp() {
               setCertificatesQuery({ page: 1, limit: certificatesQuery.limit ?? DEFAULT_PAGE_SIZE });
             }}
             onChangePage={(page) => setCertificatesQuery((currentValue) => ({ ...currentValue, page }))}
+            onRefresh={handleRefreshCertificates}
           />
         ) : null}
       </main>
@@ -876,6 +977,18 @@ function AdminApp() {
         busy={deletingCheckpoint}
         onConfirm={() => void confirmDeleteCheckpoint()}
         onCancel={() => setDeleteCheckpointModalOpen(false)}
+      />
+
+      <ConfirmDialog
+        open={geofenceConfirmOpen}
+        variant="danger"
+        title="Desligar a validação de geofence?"
+        message="Com o geofence desligado, check-ins passam a ser aceitos em qualquer distância dos checkpoints, em toda a rota — isso remove a proteção contra check-ins fraudulentos até você ligar novamente."
+        confirmLabel="Sim, desligar"
+        cancelLabel="Manter ligado"
+        busy={savingGeofenceSetting}
+        onConfirm={() => void confirmDisableGeofence()}
+        onCancel={() => setGeofenceConfirmOpen(false)}
       />
     </div>
   );

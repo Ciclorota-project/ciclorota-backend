@@ -44,7 +44,7 @@ function ToastCard(props: { toast: ToastItem; onDismiss: (id: string) => void })
     <div
       role="alert"
       className={`pointer-events-auto relative animate-toast-in rounded-lg border px-4 py-3 pr-9 text-sm shadow-lg shadow-black/40 ${
-        isError ? 'border-rose-500/20 bg-rose-500/10 text-rose-300' : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
+        isError ? 'border-rose-800 bg-rose-950 text-rose-200' : 'border-emerald-800 bg-emerald-950 text-emerald-200'
       }`}
     >
       {toast.message}

@@ -113,13 +113,14 @@ export class AdminService {
     }
 
     if (input.role) {
+      // Só app_metadata é gravado: é o único campo confiável para autorização
+      // (só o service role pode alterá-lo). Gravar a role em user_metadata
+      // também é redundante hoje e arriscado no futuro — esse campo é
+      // editável pelo próprio usuário via Supabase Auth (ver resolveRoleFromUser
+      // em config/admin.ts).
       const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
         app_metadata: {
           ...authUser.app_metadata,
-          role: input.role
-        },
-        user_metadata: {
-          ...authUser.user_metadata,
           role: input.role
         }
       });
@@ -292,8 +293,7 @@ export class AdminService {
 
     const email = data.user.email ?? data.user.user_metadata.email ?? null;
     const role = resolveRoleFromMetadata({
-      app_metadata: data.user.app_metadata,
-      user_metadata: data.user.user_metadata
+      app_metadata: data.user.app_metadata
     });
 
     return {

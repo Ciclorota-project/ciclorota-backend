@@ -2,24 +2,16 @@ import type { User } from '@supabase/supabase-js';
 
 export type AppRole = 'user' | 'admin' | 'superadmin';
 
-export function resolveRoleFromUser(user: Pick<User, 'app_metadata' | 'user_metadata'>) {
-  const appMetadataRole = normalizeRole(user.app_metadata?.role);
-
-  if (appMetadataRole) {
-    return appMetadataRole;
-  }
-
-  return normalizeRole(user.user_metadata?.role) ?? 'user';
+// A role NUNCA pode ser lida de user_metadata: esse campo é editável pelo
+// próprio usuário via Supabase Auth (auth.updateUser), então confiar nele
+// permitiria qualquer usuário se autopromover a admin/superadmin. Só
+// app_metadata é confiável, pois só o service role (backend) pode alterá-lo.
+export function resolveRoleFromUser(user: Pick<User, 'app_metadata'>) {
+  return normalizeRole(user.app_metadata?.role) ?? 'user';
 }
 
-export function resolveRoleFromMetadata(metadata: { app_metadata?: Record<string, unknown>; user_metadata?: Record<string, unknown> }) {
-  const appMetadataRole = normalizeRole(metadata.app_metadata?.role);
-
-  if (appMetadataRole) {
-    return appMetadataRole;
-  }
-
-  return normalizeRole(metadata.user_metadata?.role) ?? 'user';
+export function resolveRoleFromMetadata(metadata: { app_metadata?: Record<string, unknown> }) {
+  return normalizeRole(metadata.app_metadata?.role) ?? 'user';
 }
 
 export function isAdminRole(role: AppRole) {

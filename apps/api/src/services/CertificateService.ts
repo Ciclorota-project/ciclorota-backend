@@ -26,17 +26,23 @@ export class CertificateService {
       throw new Error('Erro ao buscar checkpoints.');
     }
 
+    // Só conta check-ins com coordenadas de GPS registradas: sem isso não há
+    // como confirmar a presença física no checkpoint (CheckinService aceita
+    // check-ins sem GPS para não travar o app offline, mas eles não valem
+    // para liberar o certificado).
     const { count: userCheckins, error: errCheckins } = await supabaseAdmin
       .from('checkins')
       .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .not('latitude_scanned', 'is', null)
+      .not('longitude_scanned', 'is', null);
 
     if (errCheckins) {
       throw new Error('Erro ao buscar check-ins do usuário.');
     }
 
     if (userCheckins === null || totalCheckpoints === null || userCheckins < totalCheckpoints) {
-      throw new Error(`Conclusão pendente: Você visitou ${userCheckins} de ${totalCheckpoints} pontos.`);
+      throw new Error(`Conclusão pendente: Você visitou ${userCheckins} de ${totalCheckpoints} pontos com localização confirmada.`);
     }
 
     // Tenta até 3 vezes para acomodar a (improvável) colisão do verification_code.

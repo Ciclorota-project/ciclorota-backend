@@ -1,7 +1,7 @@
 import { type Request, type Response } from 'express';
 import { CheckinService } from '../services/CheckinService.js';
 import { getErrorMessage, getErrorStatus, HttpError } from '../utils/httpError.js';
-import { isIsoDateString, normalizeOptionalTrimmedString } from '../utils/validation.js';
+import { isIsoDateString, isUuid, normalizeOptionalTrimmedString } from '../utils/validation.js';
 
 export class CheckinController {
   private readonly checkinService = new CheckinService();
@@ -58,8 +58,8 @@ function normalizeCheckinPayload(checkin: any) {
   const latitudeScanned = checkin?.latitude_scanned != null ? Number(checkin.latitude_scanned) : null;
   const longitudeScanned = checkin?.longitude_scanned != null ? Number(checkin.longitude_scanned) : null;
 
-  if (!checkpointId) {
-    throw new HttpError(400, 'Cada check-in precisa informar checkpoint_id.');
+  if (!checkpointId || !isUuid(checkpointId)) {
+    throw new HttpError(400, 'Cada check-in precisa informar um checkpoint_id em formato UUID válido.');
   }
 
   if (!scannedAt || !isIsoDateString(scannedAt)) {

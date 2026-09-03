@@ -14,14 +14,17 @@ const { parsePaginationQuery } = await import('../utils/pagination.js');
 const { isHttpUrl, isIsoDateString, isUuid } = await import('../utils/validation.js');
 const { escapeIlikePattern, mapAdminListUsersRow } = await import('../utils/adminUsers.js');
 
-test('resolveRoleFromMetadata prioriza app_metadata quando disponível', () => {
+test('resolveRoleFromMetadata usa somente app_metadata (nunca user_metadata)', () => {
   assert.equal(
     resolveRoleFromMetadata({
-      app_metadata: { role: 'superadmin' },
-      user_metadata: { role: 'admin' }
+      app_metadata: { role: 'superadmin' }
     }),
     'superadmin'
   );
+
+  // user_metadata é editável pelo próprio usuário via Supabase Auth — não
+  // pode influenciar a role, senão qualquer um se autopromove a admin.
+  assert.equal(resolveRoleFromMetadata({ app_metadata: {} }), 'user');
 });
 
 test('regras de governança de role respeitam admin e superadmin', () => {

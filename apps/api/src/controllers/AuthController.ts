@@ -65,4 +65,20 @@ export class AuthController {
       response.status(401).json({ error: error.message || 'Falha ao carregar a sessão atual.' });
     }
   }
+
+  async deleteMyAccount(request: Request, response: Response): Promise<void> {
+    try {
+      const userId = request.auth?.userId;
+
+      if (!userId) {
+        response.status(401).json({ error: 'Sessão inválida.' });
+        return;
+      }
+
+      await this.authService.deleteAccount(userId);
+      response.status(204).send();
+    } catch (error: any) {
+      response.status(500).json({ error: error.message || 'Não foi possível excluir a conta.' });
+    }
+  }
 }

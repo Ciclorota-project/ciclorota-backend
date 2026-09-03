@@ -27,6 +27,7 @@ routes.get('/', (request, response) => {
 routes.post('/auth/login', authController.login.bind(authController));
 routes.post('/auth/refresh', authController.refresh.bind(authController));
 routes.get('/auth/me', requireAuth, authController.me.bind(authController));
+routes.delete('/me/account', requireAuth, authController.deleteMyAccount.bind(authController));
 
 routes.get('/checkpoints', checkpointController.index.bind(checkpointController));
 

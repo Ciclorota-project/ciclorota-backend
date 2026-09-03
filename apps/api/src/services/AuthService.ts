@@ -67,6 +67,10 @@ export class AuthService {
     };
   }
 
+  async deleteAccount(userId: string): Promise<void> {
+    await this.profileService.deleteAccount(userId);
+  }
+
   private serializeSession(session: Session): AuthSessionResponse {
     return {
       access_token: session.access_token,

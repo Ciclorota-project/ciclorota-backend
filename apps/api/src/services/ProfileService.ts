@@ -152,6 +152,39 @@ export class ProfileService {
     return data;
   }
 
+  /**
+   * Exclui a conta por completo: some com os arquivos de avatar no Storage
+   * (não cobertos por FK) e remove o usuário do Supabase Auth. As tabelas
+   * profiles/checkins/certificates referenciam auth.users com
+   * `on delete cascade`, então a remoção do usuário já apaga essas linhas.
+   */
+  async deleteAccount(userId: string): Promise<void> {
+    const { data: existing, error: listError } = await supabaseAdmin.storage
+      .from(PROFILE_AVATARS_BUCKET)
+      .list(userId, { limit: 100 });
+
+    if (listError) {
+      throw new Error(`Erro ao listar arquivos do usuário: ${listError.message}`);
+    }
+
+    if (existing && existing.length > 0) {
+      const paths = existing.map((file) => `${userId}/${file.name}`);
+      const { error: removeError } = await supabaseAdmin.storage
+        .from(PROFILE_AVATARS_BUCKET)
+        .remove(paths);
+
+      if (removeError) {
+        throw new Error(`Erro ao remover arquivos do usuário: ${removeError.message}`);
+      }
+    }
+
+    const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+
+    if (deleteError) {
+      throw new Error(`Erro ao excluir a conta: ${deleteError.message}`);
+    }
+  }
+
   async getProfilesByIds(userIds: string[]) {
     if (userIds.length === 0) {
       return [];

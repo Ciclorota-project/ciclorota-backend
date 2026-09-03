@@ -38,6 +38,7 @@ routes.get('/certificates/verify/:code', certificateController.verify.bind(certi
 routes.get('/me/profile', requireAuth, profileController.showMe.bind(profileController));
 routes.put('/me/profile', requireAuth, profileController.updateMe.bind(profileController));
 routes.post('/me/profile/avatar', requireAuth, uploadProfileAvatar, profileController.uploadMyAvatar.bind(profileController));
+routes.delete('/me/profile/avatar', requireAuth, profileController.removeMyAvatar.bind(profileController));
 routes.get('/me/progress', requireAuth, progressController.showMe.bind(progressController));
 routes.post('/me/checkins', requireAuth, checkinController.storeMe.bind(checkinController));
 routes.post('/me/certificates', requireAuth, certificateController.storeMe.bind(certificateController));

@@ -56,6 +56,23 @@ export class ProfileController {
     }
   }
 
+  async removeMyAvatar(request: Request, response: Response): Promise<void> {
+    try {
+      const userId = request.auth?.userId;
+      if (!userId) {
+        response.status(401).json({ error: 'Sessão inválida.' });
+        return;
+      }
+
+      const updated = await this.profileService.removeAvatar(userId);
+      response.json(updated);
+    } catch (error: any) {
+      response
+        .status(getErrorStatus(error, 500))
+        .json({ error: getErrorMessage(error, 'Erro ao remover a foto de perfil.') });
+    }
+  }
+
   private async respondWithProfile(request: Request, response: Response, userId?: string): Promise<void> {
     try {
       if (!userId) {

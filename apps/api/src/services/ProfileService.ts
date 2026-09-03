@@ -99,9 +99,8 @@ export class ProfileService {
     return updatedData;
   }
 
-  async replaceAvatar(userId: string, file: { buffer: Buffer; mimetype: string }) {
-    // Limpa avatares antigos do usuário (qualquer extensão), depois faz upload
-    // novo com um nome único para evitar cache stale do CDN.
+  /** Remove do Storage todos os arquivos de avatar já enviados pelo usuário. */
+  private async removeAllAvatarFiles(userId: string): Promise<void> {
     const { data: existing, error: listError } = await supabaseAdmin.storage
       .from(PROFILE_AVATARS_BUCKET)
       .list(userId, { limit: 100 });
@@ -111,14 +110,21 @@ export class ProfileService {
     }
 
     if (existing && existing.length > 0) {
-      const oldPaths = existing.map((file) => `${userId}/${file.name}`);
+      const paths = existing.map((file) => `${userId}/${file.name}`);
       const { error: removeError } = await supabaseAdmin.storage
         .from(PROFILE_AVATARS_BUCKET)
-        .remove(oldPaths);
+        .remove(paths);
+
       if (removeError) {
         throw new Error(`Erro ao remover avatares antigos: ${removeError.message}`);
       }
     }
+  }
+
+  async replaceAvatar(userId: string, file: { buffer: Buffer; mimetype: string }) {
+    // Limpa avatares antigos do usuário (qualquer extensão), depois faz upload
+    // novo com um nome único para evitar cache stale do CDN.
+    await this.removeAllAvatarFiles(userId);
 
     const extension = MIME_EXTENSIONS[file.mimetype] ?? 'jpg';
     const storagePath = `${userId}/${randomUUID()}.${extension}`;
@@ -159,30 +165,30 @@ export class ProfileService {
    * `on delete cascade`, então a remoção do usuário já apaga essas linhas.
    */
   async deleteAccount(userId: string): Promise<void> {
-    const { data: existing, error: listError } = await supabaseAdmin.storage
-      .from(PROFILE_AVATARS_BUCKET)
-      .list(userId, { limit: 100 });
-
-    if (listError) {
-      throw new Error(`Erro ao listar arquivos do usuário: ${listError.message}`);
-    }
-
-    if (existing && existing.length > 0) {
-      const paths = existing.map((file) => `${userId}/${file.name}`);
-      const { error: removeError } = await supabaseAdmin.storage
-        .from(PROFILE_AVATARS_BUCKET)
-        .remove(paths);
-
-      if (removeError) {
-        throw new Error(`Erro ao remover arquivos do usuário: ${removeError.message}`);
-      }
-    }
+    await this.removeAllAvatarFiles(userId);
 
     const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
 
     if (deleteError) {
       throw new Error(`Erro ao excluir a conta: ${deleteError.message}`);
     }
+  }
+
+  /** Remove a foto de perfil atual (Storage + campo avatar_url), sem enviar uma nova. */
+  async removeAvatar(userId: string) {
+    await this.removeAllAvatarFiles(userId);
+
+    const { data, error } = await supabaseAdmin
+      .from('profiles')
+      .upsert({ id: userId, avatar_url: null }, { onConflict: 'id' })
+      .select('id, full_name, avatar_url')
+      .single();
+
+    if (error) {
+      throw new Error(`Erro ao remover a foto de perfil: ${error.message}`);
+    }
+
+    return data;
   }
 
   async getProfilesByIds(userIds: string[]) {
